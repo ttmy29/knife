@@ -391,9 +391,9 @@ export class GameManager extends Component {
             }
             this.updatePowerUI();
         };
-        this.player.playAttack(() => {
-            // 角色攻击播完：怪物立刻停攻击，播放死亡动画（角色胜时）
-            if (win) {
+        if (win) {
+            this.player.playAttack(() => {
+                // 角色攻击播完：怪物立刻停攻击，播放死亡动画（角色胜时）
                 // 战斗结束：角色可以继续移动；怪物从寻路表移除，不再参与战斗
                 this.battling = false;
                 if (this.grid) this.grid.removeMonster(monster);
@@ -412,17 +412,18 @@ export class GameManager extends Component {
                     orbsDone = true;
                     hideMonster();
                 });
-            }
-        });
-        monster.playAttack(() => {
-            // 怪物攻击播完（角色败时）：角色倒地
-            if (!win) {
+            });
+            monster.playAttack();
+        } else {
+            this.player.playAttack();
+            monster.playAttack();
+            this.scheduleOnce(() => {
                 this.battling = false;
                 this.showBattleResult('失败', new Color(255, 90, 90, 255));
                 this.player!.playDie();
                 this.showDeathUI();
-            }
-        });
+            }, 0.5);
+        }
         this.startPowerTick(monster, win);
     }
 

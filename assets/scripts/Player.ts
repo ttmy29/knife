@@ -130,7 +130,7 @@ export class Player extends Component {
     playAttack(onComplete?: () => void): void {
         this.playAnim('phyattack1', false);
         this.onceAnimComplete(() => {
-            this.playIdle();
+            if (!this.dead) this.playIdle();
             if (onComplete) onComplete();
         });
     }
@@ -199,7 +199,6 @@ export class Player extends Component {
                     else if (occNode.position.x > this.node.position.x) this.setFacing(1);
                 }
                 if (occ.monster) {
-                    this.playAttack();
                     if (this.events && this.events.onBattle) this.events.onBattle(occ.monster);
                 } else if (occ.chest) {
                     // 宝箱：攻击动画播完才开箱
