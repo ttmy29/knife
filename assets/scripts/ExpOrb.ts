@@ -34,11 +34,11 @@ export class ExpOrb extends Component {
         const g = this.getComponent(Graphics) || this.addComponent(Graphics);
         g.clear();
         g.fillColor = new Color(255, 255, 255, 255);
-        g.circle(0, 0, 11);
+        g.circle(0, 0, 5);
         g.fill();
         g.strokeColor = new Color(255, 255, 255, 255);
         g.lineWidth = 2;
-        g.circle(0, 0, 11);
+        g.circle(0, 0, 5);
         g.stroke();
     }
 

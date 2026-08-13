@@ -39,6 +39,7 @@ export class GameManager extends Component {
     private onPowerTick: (() => void) | null = null;
     private battling = false;
     private retryButton: Node | null = null;
+    private finalMonster: Monster | null = null;
 
     onLoad(): void {
         const canvas = this.node.parent;
@@ -212,7 +213,7 @@ export class GameManager extends Component {
             node = instantiate(this.playerPrefab);
             node.name = 'PlayerInstance';
             // 角色显示大小固定，与格子大小解耦
-            this.fitToTile(node, 80);
+            this.fitToTile(node, 50);
         } else {
             node = this.createPlaceholder(Level1.tileSize * 0.6, new Color(90, 200, 255, 255));
             node.name = 'PlayerPlaceholder';
@@ -257,6 +258,7 @@ export class GameManager extends Component {
     private spawnMonsters(): void {
         const container = this.node.getChildByName('Monsters');
         if (!container || !this.grid) return;
+        let highestMonster: Monster | null = null;
         // 怪物直接在场景里摆放：Monsters 下的子节点就是怪物（预制体实例）
         // 位置取节点坐标（启动时吸附到最近格子），数值取子 Label 文本，缩放完全由编辑器控制
         for (const child of container.children) {
@@ -264,7 +266,10 @@ export class GameManager extends Component {
             if (!child.activeInHierarchy) continue;
             const monster = child.getComponent(Monster) || child.addComponent(Monster);
             monster.init(this.grid);
+            if (!highestMonster || monster.power > highestMonster.power) highestMonster = monster;
+            if (child.name === 'monster1') this.finalMonster = monster;
         }
+        if (!this.finalMonster) this.finalMonster = highestMonster;
     }
 
     /** 扫描场景里的宝箱并注册（战力读宝箱子 Label，不限角色战力） */
@@ -307,7 +312,7 @@ export class GameManager extends Component {
 
         const node = instantiate(this.role1Prefab);
         node.name = 'PlayerInstance';
-        this.fitToTile(node, 80);
+        this.fitToTile(node, 50);
         // role1 的 Label 写入当前战力（init 会读 Label）
         const label = node.getComponentInChildren(Label);
         if (label) label.string = String(power);
@@ -412,6 +417,7 @@ export class GameManager extends Component {
                     orbsDone = true;
                     hideMonster();
                 });
+                if (monster === this.finalMonster) this.showVictoryUI();
             });
             monster.playAttack();
         } else {
@@ -492,18 +498,27 @@ export class GameManager extends Component {
 
     /** 角色死亡：显示"再来一次"按钮（复用原来的重载场景逻辑） */
     private showDeathUI(): void {
+        this.showRestartButton('再来一次', new Color(70, 140, 255, 255));
+    }
+
+    /** 打败最终怪物：显示"游戏胜利"按钮（暂时复用再来一次逻辑） */
+    private showVictoryUI(): void {
+        this.showRestartButton('游戏胜利', new Color(70, 180, 110, 255));
+    }
+
+    private showRestartButton(text: string, color: Color): void {
         if (!this.uiLayer || this.retryButton) return;
         const btn = new Node('RetryButton');
         btn.addComponent(UITransform).setContentSize(240, 68);
         const g = btn.addComponent(Graphics);
-        g.fillColor = new Color(70, 140, 255, 255);
+        g.fillColor = color;
         g.rect(-120, -34, 240, 68);
         g.fill();
         // 相机始终对准角色：直接把按钮放在相机位置（即角色所在屏幕位置）往下偏移
         const camNode = this.camera ? this.camera.node : null;
         btn.setPosition(camNode ? camNode.position.x : 0, (camNode ? camNode.position.y : 0) - 260, 0);
         this.uiLayer.addChild(btn);
-        this.createLabelNode(btn, '再来一次', new Color(255, 255, 255, 255), 34, 0);
+        this.createLabelNode(btn, text, new Color(255, 255, 255, 255), 34, 0);
         const b = btn.addComponent(Button);
         b.transition = Button.Transition.NONE;
         b.target = btn;
