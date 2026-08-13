@@ -1,0 +1,13 @@
+
+100201.png
+size: 39,45
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+兽人主角/st
+  rotate: false
+  xy: 0, 0
+  size: 39, 45
+  orig: 41, 47
+  offset: 1, 1
+  index: -1

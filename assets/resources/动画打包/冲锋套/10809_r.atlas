@@ -1,0 +1,97 @@
+
+10809_r.png
+size: 383,53
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+冲锋套 副本 2/yan10001
+  rotate: true
+  xy: 318, 5
+  size: 48, 25
+  orig: 67, 43
+  offset: 1, 2
+  index: -1
+冲锋套 副本 2/yan10003
+  rotate: true
+  xy: 288, 3
+  size: 50, 28
+  orig: 67, 43
+  offset: 8, 2
+  index: -1
+冲锋套 副本 2/yan10005
+  rotate: true
+  xy: 178, 0
+  size: 53, 32
+  orig: 67, 43
+  offset: 10, 2
+  index: -1
+冲锋套 副本 2/yan10007
+  rotate: true
+  xy: 212, 6
+  size: 47, 35
+  orig: 67, 43
+  offset: 16, 2
+  index: -1
+冲锋套 副本 2/yan10009
+  rotate: true
+  xy: 63, 5
+  size: 48, 36
+  orig: 67, 43
+  offset: 16, 3
+  index: -1
+冲锋套 副本 2/yan10011
+  rotate: true
+  xy: 101, 5
+  size: 48, 36
+  orig: 67, 43
+  offset: 17, 4
+  index: -1
+冲锋套 副本 2/yan10013
+  rotate: true
+  xy: 139, 7
+  size: 46, 37
+  orig: 67, 43
+  offset: 18, 4
+  index: -1
+冲锋套 副本 2/yan10015
+  rotate: true
+  xy: 249, 10
+  size: 43, 37
+  orig: 67, 43
+  offset: 20, 4
+  index: -1
+冲锋套 副本 2/yan10017
+  rotate: false
+  xy: 345, 14
+  size: 23, 12
+  orig: 67, 43
+  offset: 24, 28
+  index: -1
+冲锋套 副本 2/yan10019
+  rotate: false
+  xy: 345, 2
+  size: 19, 10
+  orig: 67, 43
+  offset: 26, 30
+  index: -1
+冲锋套 副本 2/yb
+  rotate: true
+  xy: 345, 28
+  size: 25, 24
+  orig: 27, 26
+  offset: 1, 1
+  index: -1
+冲锋套 副本 2/yjj
+  rotate: false
+  xy: 0, 0
+  size: 61, 53
+  orig: 63, 55
+  offset: 1, 1
+  index: -1
+冲锋套 副本 2/yjj1
+  rotate: false
+  xy: 370, 13
+  size: 13, 13
+  orig: 13, 13
+  offset: 0, 0
+  index: -1
