@@ -1,6 +1,6 @@
 import {
     _decorator, Component, Node, Prefab, instantiate, Graphics, UITransform,
-    Label, Color, Vec2, Vec3, input, Input, EventTouch, director, Button, Camera,
+    Label, Color, Vec2, Vec3, input, Input, EventTouch, director, Button, Camera, Animation,
 } from 'cc';
 import { Grid } from './Grid';
 import { Monster } from './Monster';
@@ -10,13 +10,13 @@ import { WallRegion } from './WallRegion';
 import { CameraFollow } from './CameraFollow';
 import { ExpOrb } from './ExpOrb';
 import { Chest } from './Chest';
+import { FailPanel } from './FailPanel';
 import { Level1 } from './GameConfig';
 
 const { ccclass, property } = _decorator;
 
 /**
- * 游戏入口（挂在 GameWorld 节点上）：
- * - 用 Graphics 生成地面/墙（不需要墙预制体）
+ * 游戏入口（挂�?GameWorld 节点上）�? * - �?Graphics 生成地面/墙（不需要墙预制体）
  * - 角色由预制体实例化；怪物直接在场景里摆放（Monsters 节点下）
  * - 全局点击输入 -> 寻路 -> 绿线 -> 移动 -> 战斗
  */
@@ -25,9 +25,12 @@ export class GameManager extends Component {
     @property({ type: Prefab })
     playerPrefab: Prefab | null = null;
 
-    /** 开箱后角色切换的形态（role1.prefab，动画名与 role 一致） */
+    /** 开箱后角色切换的形态（role1.prefab，动画名�?role 一致） */
     @property({ type: Prefab })
     role1Prefab: Prefab | null = null;
+
+    @property({ type: Prefab })
+    failPrefab: Prefab | null = null;
 
     private grid: Grid | null = null;
     private player: Player | null = null;
@@ -39,11 +42,31 @@ export class GameManager extends Component {
     private onPowerTick: (() => void) | null = null;
     private battling = false;
     private retryButton: Node | null = null;
+    private failPanel: Node | null = null;
     private finalMonster: Monster | null = null;
+    private glowHolder: Node | null = null;
+    private glowingMonster: Monster | null = null;
+    private glowingMonsterParent: Node | null = null;
+    private glowingMonsterSiblingIndex = -1;
+    private glowingMonsterScale: Vec3 | null = null;
+    private glowingLabelRoot: Node | null = null;
+    private glowingLabelParent: Node | null = null;
+    private glowingLabelSiblingIndex = -1;
+    private glowingLabelPosition: Vec3 | null = null;
+    private glowingLabelScale: Vec3 | null = null;
+    private glowingLabelActive = true;
+    private hideGlowTask: (() => void) | null = null;
 
     onLoad(): void {
         const canvas = this.node.parent;
         this.camera = canvas ? canvas.getComponentInChildren(Camera) : null;
+        this.glowHolder = this.node.getChildByName('GlowHolder') || (canvas ? canvas.getChildByName('GlowHolder') : null);
+        if (this.glowHolder) {
+            for (const child of this.glowHolder.children) {
+                if (child.name !== 'Camera') child.active = false;
+            }
+            this.glowHolder.active = false;
+        }
 
         this.grid = this.getComponent(Grid) || this.addComponent(Grid);
         this.grid.init(Level1);
@@ -58,10 +81,15 @@ export class GameManager extends Component {
         this.buildUI();
 
         input.on(Input.EventType.TOUCH_START, this.onTouchStart, this);
+        input.on(Input.EventType.TOUCH_END, this.onTouchEnd, this);
+        input.on(Input.EventType.TOUCH_CANCEL, this.onTouchCancel, this);
     }
 
     onDestroy(): void {
+        this.hideMonsterGlow();
         input.off(Input.EventType.TOUCH_START, this.onTouchStart, this);
+        input.off(Input.EventType.TOUCH_END, this.onTouchEnd, this);
+        input.off(Input.EventType.TOUCH_CANCEL, this.onTouchCancel, this);
         if (this.onPowerTick) this.unschedule(this.onPowerTick);
     }
 
@@ -92,7 +120,7 @@ export class GameManager extends Component {
         }
     }
 
-    /** 扫描场景里的 WallRegion 节点，把覆盖的格子烘焙成墙 */
+    /** 扫描场景里的 WallRegion 节点，把覆盖的格子烘焙成�?*/
     private bakeWallRegions(): void {
         if (!this.grid) return;
         const regions = this.node.getComponentsInChildren(WallRegion);
@@ -102,7 +130,7 @@ export class GameManager extends Component {
             if (!region.node.activeInHierarchy) continue;
             total += region.bake(this.grid);
         }
-        console.log(`[WallRegion] 烘焙 ${regions.length} 个区域，共 ${total} 格墙`);
+       // console.log(`[WallRegion] 烘焙 ${regions.length} 个区域，�?${total} 格墙`);
     }
 
     private buildPathLine(): void {
@@ -140,19 +168,17 @@ export class GameManager extends Component {
 
     /**
      * 怪物死亡经验球掉落规则：
-     * 1) 角色战力 > 怪物：角色执行攻击动画时，立刻生成 2 个经验球（在怪物位置）
-     * 2) 散落方向看怪物在角色的方位：左上 / 左下 / 右上 / 右下
-     * 3) 2 个球 0.3s 抛物线散落（一个移动 60、一个 90），0.1s 后再抛物线移动 30
-     * 4) 运动完成后 0.1s，经验球飞向角色
-     * 5) 中途怪物头顶数字保持 0 不动；2 个球到达角色后，怪物与球一起消失
-     */
+     * 1) 角色战力 > 怪物：角色执行攻击动画时，立刻生�?2 个经验球（在怪物位置�?     * 2) 散落方向看怪物在角色的方位：左�?/ 左下 / 右上 / 右下
+     * 3) 2 个球 0.3s 抛物线散落（一个移�?60、一�?90），0.1s 后再抛物线移�?30
+     * 4) 运动完成�?0.1s，经验球飞向角色
+     * 5) 中途怪物头顶数字保持 0 不动�? 个球到达角色后，怪物与球一起消�?     */
     private startExpOrbDrop(monster: Monster, onComplete: () => void): void {
         if (!this.player) {
             onComplete();
             return;
         }
         const monsterPos = monster.node ? monster.node.position.clone() : new Vec3();
-        // 方位：怪物在角色右 / 上 -> 方向取正
+        // 方位：怪物在角色右 / �?-> 方向取正
         const dx = monsterPos.x - this.player.node.position.x;
         const dy = monsterPos.y - this.player.node.position.y;
         const dirX = dx >= 0 ? 1 : -1;
@@ -172,15 +198,14 @@ export class GameManager extends Component {
             }
         };
 
-        // 两个球 Y 完全一致：垂直位移 vy 相同、弧线最高点相同；只有 X 不同（60 / 90）
-        const vy = 20; // 垂直位移（跟随方位上/下，可调；0 = 纯水平散落）
+        const vy = 20;
         const peak1 = 40;
         const peak2 = 20;
 
-        // 第一跳：0.5s，一个 X 移 60、一个 X 移 90，抛物线
+        // 第一跳：0.5s，一�?X �?60、一�?X �?90，抛物线
         orb1.hop(dirX * 60, dirY * vy, 0.5, peak1);
         orb2.hop(dirX * 90, dirY * vy, 0.5, peak1);
-        // 第一跳结束（0.5s）立刻第二跳：0.3s 再向右移动 30，抛物线
+        // 第一跳结束（0.5s）立刻第二跳�?.3s 再向右移�?30，抛物线
         this.scheduleOnce(() => {
             orb1.hop(dirX * 30, 0, 0.3, peak2);
             orb2.hop(dirX * 30, 0, 0.3, peak2);
@@ -196,7 +221,6 @@ export class GameManager extends Component {
                 orb2.flyTo(new Vec3(), 0.2, onArrive);
             }
         }, 0.8);
-        // 经验球兜底：异常（球未归位）时也强制结束，并补一次缩放反馈
         this.scheduleOnce(() => {
             if (orb1.node && orb1.node.isValid) orb1.node.destroy();
             if (orb2.node && orb2.node.isValid) orb2.node.destroy();
@@ -212,7 +236,6 @@ export class GameManager extends Component {
         if (this.playerPrefab) {
             node = instantiate(this.playerPrefab);
             node.name = 'PlayerInstance';
-            // 角色显示大小固定，与格子大小解耦
             this.fitToTile(node, 50);
         } else {
             node = this.createPlaceholder(Level1.tileSize * 0.6, new Color(90, 200, 255, 255));
@@ -226,7 +249,7 @@ export class GameManager extends Component {
         this.assignCameraTarget();
     }
 
-    /** 绑定角色事件（初始 / 切换 role1 后复用） */
+    /** 绑定角色事件（初�?/ 切换 role1 后复用） */
     private bindPlayerEvents(player: Player): void {
         player.events = {
             onArrive: (m: Monster | null) => {
@@ -238,7 +261,7 @@ export class GameManager extends Component {
         };
     }
 
-    /** 相机跟随角色：给 Camera 挂 CameraFollow 并指定目标 */
+    /** 相机跟随角色：给 Camera �?CameraFollow 并指定目�?*/
     private assignCameraTarget(): void {
         const canvas = this.node.parent;
         if (!canvas) return;
@@ -259,8 +282,6 @@ export class GameManager extends Component {
         const container = this.node.getChildByName('Monsters');
         if (!container || !this.grid) return;
         let highestMonster: Monster | null = null;
-        // 怪物直接在场景里摆放：Monsters 下的子节点就是怪物（预制体实例）
-        // 位置取节点坐标（启动时吸附到最近格子），数值取子 Label 文本，缩放完全由编辑器控制
         for (const child of container.children) {
             child.active = true; // 初始化时恢复所有怪物显示（被杀怪用 active 隐藏，不销毁）
             if (!child.activeInHierarchy) continue;
@@ -282,7 +303,7 @@ export class GameManager extends Component {
         }
     }
 
-    /** 开箱：+战力、宝箱消失、角色切换 role1 */
+    /** 开箱：+战力、宝箱消失、角色切�?role1 */
     private openChest(chest: Chest): void {
         if (!this.player) return;
         // 和打怪一样：开箱后绿线消失
@@ -294,11 +315,10 @@ export class GameManager extends Component {
         // 宝箱消失
         if (this.grid) this.grid.removeChest(chest);
         if (chest.node) chest.node.active = false;
-        // 角色切换 role1（后续移动/打怪都用 role1）
         this.switchPlayerToRole1();
     }
 
-    /** 把当前角色替换成 role1：位置/战力保留，动画名一致 */
+    /** 把当前角色替换成 role1：位�?战力保留，动画名一�?*/
     private switchPlayerToRole1(): void {
         if (!this.player || !this.role1Prefab || !this.grid) return;
         const container = this.node.getChildByName('Player');
@@ -306,17 +326,17 @@ export class GameManager extends Component {
         const old = this.player;
         const pos = old.node.position.clone();
         const power = old.power;
-        const facingDir = old.node.scale.x >= 0 ? 1 : -1;
+        const facingDir = old.getFacing();
         const cell = this.grid.worldToGrid(pos) || new Vec2(old.gridCol, old.gridRow);
         old.node.destroy();
 
         const node = instantiate(this.role1Prefab);
         node.name = 'PlayerInstance';
         this.fitToTile(node, 50);
-        // role1 的 Label 写入当前战力（init 会读 Label）
         const label = node.getComponentInChildren(Label);
         if (label) label.string = String(power);
         container.addChild(node);
+        this.playRole1NormalAnimation(node);
 
         const player = node.addComponent(Player);
         player.init(power, cell.x, cell.y, this.grid);
@@ -325,6 +345,14 @@ export class GameManager extends Component {
         this.player = player;
         this.assignCameraTarget();
         this.updatePowerUI();
+    }
+
+    private playRole1NormalAnimation(role1Node: Node): void {
+        const animNode = role1Node.getChildByName('Node');
+        if (!animNode) return;
+        animNode.active = true;
+        const anim = animNode.getComponent(Animation);
+        if (anim) anim.play();
     }
 
     private buildUI(): void {
@@ -354,39 +382,75 @@ export class GameManager extends Component {
 
     private onTouchStart(event: EventTouch): void {
         if (!this.grid || !this.player || this.player.dead || this.battling) return;
-        // 点击 UI 区域（返回按钮等）不触发寻路
-        const target = event.target;
-        if (target && target instanceof Node && this.uiLayer && target.isChildOf(this.uiLayer)) return;
+        if (this.isTouchOnUI(event)) return;
 
-        // 屏幕坐标 -> 世界坐标（经过相机换算，相机跟随角色移动后点击仍准确）
+        const cell = this.getTouchCell(event);
+        if (!cell) {
+            this.hideMonsterGlow();
+            return;
+        }
+
+        const clickedMonster = this.grid.getMonsterAt(cell.x, cell.y);
+        if (clickedMonster) this.showMonsterGlow(clickedMonster);
+        else this.hideMonsterGlow();
+    }
+
+    private onTouchEnd(event: EventTouch): void {
+        if (!this.grid || !this.player || this.player.dead || this.battling) {
+            this.hideMonsterGlow();
+            return;
+        }
+        if (this.isTouchOnUI(event)) {
+            this.hideMonsterGlow();
+            return;
+        }
+
+        const cell = this.getTouchCell(event);
+        this.hideMonsterGlow();
+        if (!cell) return;
+
+        this.handleMoveTouch(cell);
+    }
+
+    private onTouchCancel(): void {
+        this.hideMonsterGlow();
+    }
+
+    private isTouchOnUI(event: EventTouch): boolean {
+        const target = event.target;
+        return !!(target && target instanceof Node && this.uiLayer && target.isChildOf(this.uiLayer));
+    }
+
+    private getTouchCell(event: EventTouch): Vec2 | null {
+        if (!this.grid) return null;
         const screenPos = event.getLocation();
         const worldPos = this.camera
             ? this.camera.screenToWorld(new Vec3(screenPos.x, screenPos.y, 0))
             : new Vec3(screenPos.x, screenPos.y, 0);
         const local = this.node.getComponent(UITransform)!.convertToNodeSpaceAR(worldPos);
-        const cell = this.grid.worldToGrid(local);
-        if (!cell) return; // 地图外：无反应
+        return this.grid.worldToGrid(local);
+    }
 
-        // 起点用角色当前实际位置对应的格子（移动中也能准确重新寻路）
+    private handleMoveTouch(cell: Vec2): void {
+        if (!this.grid || !this.player) return;
         const startCell = this.grid.worldToGrid(this.player.node.position) || new Vec2(this.player.gridCol, this.player.gridRow);
         const result = this.grid.findPath(startCell, cell);
-        if (!result) return; // 墙 / 不可达 / 被围怪物：无反应
+        if (!result) return;
 
-        // 路径拉直 + 拐点贴墙：得到世界坐标点列
         const movePath = this.grid.buildMovePath(startCell, result.path, this.player.node.position.clone());
         if (this.pathLine) this.pathLine.drawPath(movePath, movePath[movePath.length - 1]);
         this.player.moveTo(movePath, result.blockMonster);
     }
 
-    // ---------------- 战斗（需求 4/12/13/14） ----------------
+    // ---------------- 战斗（需�?4/12/13/14�?----------------
 
     private doBattle(monster: Monster): void {
         if (!this.player || this.battling) return;
+        this.hideMonsterGlow();
         this.battling = true;
         if (this.pathLine) this.pathLine.clear();
-        // 双方同时播攻击；判定提前到攻击播放时：数字立即分段跳动
+        this.player.faceToWorldX(monster.node.position.x);
         const win = this.player.power > monster.power;
-        // 怪物不销毁：死亡动画播过 + 经验球归位后，用 active=false 隐藏（避免销毁后回调报错）
         let diePlayed = false;
         let orbsDone = false;
         const hideMonster = () => {
@@ -399,20 +463,17 @@ export class GameManager extends Component {
         if (win) {
             this.player.playAttack(() => {
                 // 角色攻击播完：怪物立刻停攻击，播放死亡动画（角色胜时）
-                // 战斗结束：角色可以继续移动；怪物从寻路表移除，不再参与战斗
                 this.battling = false;
                 if (this.grid) this.grid.removeMonster(monster);
-                // 死亡动画播放完后，等经验球归位再一起隐藏
                 monster.playDie(() => {
                     diePlayed = true;
                     hideMonster();
                 });
-                // 死亡动画兜底：异常（动画不播完/骨骼失效）时强制结束
+                // 死亡动画兜底：异常（动画不播�?骨骼失效）时强制结束
                 this.scheduleOnce(() => {
                     diePlayed = true;
                     hideMonster();
                 }, 3);
-                // 角色攻击动画播放后才产生经验球
                 this.startExpOrbDrop(monster, () => {
                     orbsDone = true;
                     hideMonster();
@@ -433,11 +494,97 @@ export class GameManager extends Component {
         this.startPowerTick(monster, win);
     }
 
+    private showMonsterGlow(monster: Monster): void {
+        if (!this.glowHolder || !monster.node || !monster.node.isValid) return;
+        this.hideMonsterGlow();
+        const parent = monster.node.parent;
+        if (!parent) return;
+
+        const localPos = monster.node.position.clone();
+        const scale = monster.node.scale.clone();
+        this.glowingMonster = monster;
+        this.glowingMonsterParent = parent;
+        this.glowingMonsterSiblingIndex = parent.children.indexOf(monster.node);
+        this.glowingMonsterScale = scale;
+        this.detachMonsterLabelForGlow(monster, parent);
+
+        this.glowHolder.setPosition(localPos);
+        this.glowHolder.active = true;
+        monster.node.setParent(this.glowHolder);
+        monster.node.setPosition(0, 0, 0);
+        const worldScale = this.node.scale;
+        monster.node.setScale(
+            worldScale.x !== 0 ? scale.x / worldScale.x : scale.x,
+            worldScale.y !== 0 ? scale.y / worldScale.y : scale.y,
+            scale.z,
+        );
+
+    }
+
+    private hideMonsterGlow(): void {
+        if (this.hideGlowTask) {
+            this.unschedule(this.hideGlowTask);
+            this.hideGlowTask = null;
+        }
+        const monster = this.glowingMonster;
+        const parent = this.glowingMonsterParent;
+        if (monster && monster.node && monster.node.isValid && parent && parent.isValid) {
+            const glowLocalPos = this.glowHolder ? this.glowHolder.position.clone() : monster.node.position.clone();
+            const scale = this.glowingMonsterScale;
+            monster.node.setParent(parent);
+            monster.node.setPosition(glowLocalPos);
+            if (scale) monster.node.setScale(scale);
+            if (this.glowingMonsterSiblingIndex >= 0) monster.node.setSiblingIndex(this.glowingMonsterSiblingIndex);
+        }
+        this.restoreMonsterLabelAfterGlow();
+        if (this.glowHolder) this.glowHolder.active = false;
+        this.glowingMonster = null;
+        this.glowingMonsterParent = null;
+        this.glowingMonsterSiblingIndex = -1;
+        this.glowingMonsterScale = null;
+    }
+
+    private detachMonsterLabelForGlow(monster: Monster, fallbackParent: Node): void {
+        const labelRoot = monster.getPowerLabelGlowRoot();
+        if (!labelRoot || !labelRoot.isValid || labelRoot === monster.node) return;
+        const labelParent = labelRoot.parent;
+        if (!labelParent) return;
+
+        this.glowingLabelRoot = labelRoot;
+        this.glowingLabelParent = labelParent;
+        this.glowingLabelSiblingIndex = labelParent.children.indexOf(labelRoot);
+        this.glowingLabelPosition = labelRoot.position.clone();
+        this.glowingLabelScale = labelRoot.scale.clone();
+        this.glowingLabelActive = labelRoot.active;
+
+        const overlayParent = this.glowHolder && this.glowHolder.parent ? this.glowHolder.parent : fallbackParent;
+        labelRoot.setParent(overlayParent, true);
+        labelRoot.active = this.glowingLabelActive;
+        if (this.glowHolder && overlayParent === this.glowHolder.parent) {
+            labelRoot.setSiblingIndex(this.glowHolder.getSiblingIndex() + 1);
+        }
+    }
+
+    private restoreMonsterLabelAfterGlow(): void {
+        const labelRoot = this.glowingLabelRoot;
+        const labelParent = this.glowingLabelParent;
+        if (labelRoot && labelRoot.isValid && labelParent && labelParent.isValid) {
+            labelRoot.setParent(labelParent);
+            if (this.glowingLabelPosition) labelRoot.setPosition(this.glowingLabelPosition);
+            if (this.glowingLabelScale) labelRoot.setScale(this.glowingLabelScale);
+            labelRoot.active = this.glowingLabelActive;
+            if (this.glowingLabelSiblingIndex >= 0) labelRoot.setSiblingIndex(this.glowingLabelSiblingIndex);
+        }
+        this.glowingLabelRoot = null;
+        this.glowingLabelParent = null;
+        this.glowingLabelSiblingIndex = -1;
+        this.glowingLabelPosition = null;
+        this.glowingLabelScale = null;
+        this.glowingLabelActive = true;
+    }
+
     /**
-     * 头顶数字分段跳动：3 段、每段 0.3s。
-     * 赢家按输家战力分 3 段加上去，输家分 3 段减到 0；输的一方在攻击播完后播放 die。
-     * 例：角色 10 vs 怪物 9，角色胜 -> 角色 13/16/19，怪物 6/3/0。
-     */
+     * 头顶数字分段跳动�? 段、每�?0.3s�?     * 赢家按输家战力分 3 段加上去，输家分 3 段减�?0；输的一方在攻击播完后播�?die�?     * 例：角色 10 vs 怪物 9，角色胜 -> 角色 13/16/19，怪物 6/3/0�?     */
     private startPowerTick(monster: Monster, win: boolean): void {
         const player = this.player;
         if (!player) return;
@@ -454,7 +601,6 @@ export class GameManager extends Component {
                 player.power = startPlayerPower + gain;
                 if (monster.node && monster.node.isValid) monster.setLabelText(String(Math.max(0, startMonsterPower - gain)));
             } else {
-                // 角色减到 0、怪物加上去
                 player.power = Math.max(0, startPlayerPower - gain);
                 monster.power = startMonsterPower + gain;
                 if (monster.node && monster.node.isValid) monster.setLabelText(String(monster.power));
@@ -471,7 +617,7 @@ export class GameManager extends Component {
                 }
             }
         };
-        this.schedule(this.onPowerTick, 0.1, 2);//就用0.1
+        this.schedule(this.onPowerTick, 0.2, 2);//就用0.1
     }
 
     /** 刷新角色头顶数字和左上角战力 HUD */
@@ -496,12 +642,23 @@ export class GameManager extends Component {
         this.scheduleOnce(this.hideBattleResult, 1.2);
     }
 
-    /** 角色死亡：显示"再来一次"按钮（复用原来的重载场景逻辑） */
+    /** 角色死亡：显�?再来一�?按钮（复用原来的重载场景逻辑�?*/
     private showDeathUI(): void {
-        this.showRestartButton('再来一次', new Color(70, 140, 255, 255));
+        if (!this.uiLayer || this.failPanel) return;
+        if (!this.failPrefab) {
+            this.showRestartButton('再来一次', new Color(70, 140, 255, 255));
+            return;
+        }
+
+        const panel = instantiate(this.failPrefab);
+        panel.name = 'FailPanel';
+        this.uiLayer.addChild(panel);
+        const failPanel = panel.addComponent(FailPanel);
+        failPanel.play(this.camera ? this.camera.node : null);
+        this.failPanel = panel;
     }
 
-    /** 打败最终怪物：显示"游戏胜利"按钮（暂时复用再来一次逻辑） */
+    /** 打败最终怪物：显�?游戏胜利"按钮（暂时复用再来一次逻辑�?*/
     private showVictoryUI(): void {
         this.showRestartButton('游戏胜利', new Color(70, 180, 110, 255));
     }
@@ -514,7 +671,6 @@ export class GameManager extends Component {
         g.fillColor = color;
         g.rect(-120, -34, 240, 68);
         g.fill();
-        // 相机始终对准角色：直接把按钮放在相机位置（即角色所在屏幕位置）往下偏移
         const camNode = this.camera ? this.camera.node : null;
         btn.setPosition(camNode ? camNode.position.x : 0, (camNode ? camNode.position.y : 0) - 260, 0);
         this.uiLayer.addChild(btn);

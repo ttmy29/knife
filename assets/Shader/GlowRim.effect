@@ -1,0 +1,153 @@
+CCEffect %{
+techniques:
+  - passes:
+      - vert: vs:vert
+        frag: fs:frag
+        blendState:
+          targets:
+            - blend: true
+              blendSrc: src_alpha #源颜色（片元着色器输出的颜色）混合因子使用源颜色的Alpha值
+              blendDst: one_minus_src_alpha #目标颜色（帧缓冲中的颜色）混合因子使用(1 - 源颜色的Alpha值)
+        depthStencilState:
+          depthTest: false #关闭深度测试
+          depthWrite: false #关闭深度写入
+        rasterizerState:
+          cullMode: none
+        properties:
+          __metadata__: { editor: { visible: false } } #面板隐藏所有属性
+          outerColor: { value: [1, 1, 0, 1] } #外发光颜色
+          innerColor: { value: [1, 1, 1, 1] } #内发光颜色
+          texSize: { value: [100, 100] } #图片尺寸
+          enable: { value: 1 } #是否可用
+          outerActive: { value: 1 } #外发光是否激活
+          outerStyle: { value: 1 } #外发光样式
+          outerWidth: { value: 50 } #外发光宽度
+          innerActive: { value: 1 } #内发光是否激活
+          innerStyle: { value: 1 } #内发光样式
+          innerWidth: { value: 50 } #内发光宽度
+          brightness: { value: 1 } #明暗度
+          centerScale: { value: 1 } #先缩小1/centerScale倍再加发光特效，最后整张图放大1/centerScale倍
+          sampleFromRt: { value: 0 } #Camera的targetTexture需要打开此开关，以便镜像翻转uv
+
+}%
+
+CCProgram vs %{
+precision mediump float;
+#include <cc-global>
+#if USE_LOCAL
+  #include <builtin/uniforms/cc-local>
+#endif
+in vec3 a_position;
+in vec2 a_texCoord;
+in vec4 a_color;
+out vec4 spriteColor;
+out vec2 uv;
+uniform Vs {
+  float sampleFromRt;
+};
+vec4 vert() {
+  vec4 pos = vec4(a_position, 1); //扩展齐次坐标的w分量，便于后续计算
+  #if USE_LOCAL
+    pos = cc_matWorld * pos;
+  #endif
+  #if USE_PIXEL_ALIGNMENT
+    pos = cc_matView * pos;
+    pos.xyz = floor(pos.xyz);
+    pos = cc_matProj * pos;
+  #else
+    pos = cc_matViewProj * pos;
+  #endif
+  uv = a_texCoord;
+  if (sampleFromRt == 1.0 && cc_cameraPos.w > 1.0) {
+    uv.y = 1.0 - uv.y;
+  }
+  spriteColor = a_color;
+  return pos;
+}
+}%
+
+CCProgram fs %{
+precision mediump float;
+#include <sprite-texture>
+in vec4 spriteColor;
+in vec2 uv;
+uniform Fs {
+  vec4 outerColor;
+  vec4 innerColor;
+  vec2 texSize;
+  float enable;
+  float outerActive;
+  float outerStyle;
+  float outerWidth;
+  float innerActive;
+  float innerStyle;
+  float innerWidth;
+  float brightness;
+  float centerScale;
+};
+vec4 getColor(sampler2D tex, vec2 uv) {
+  return uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 ? vec4(0, 0, 0, 0) : texture(tex, uv);
+}
+#define ALPHA_THRESHOLD 0.5
+#define ANGLE_COUNT 36
+#define JOINT_COUNT 20
+vec4 frag() {
+  vec2 scaleUv = (uv - vec2(0.5, 0.5) * (1.0 - centerScale)) / centerScale;
+  vec4 o = getColor(cc_spriteTexture, scaleUv) * spriteColor;
+  if (enable == 0.0) { return o; }
+  float radianStep = 6.2831853 / float(ANGLE_COUNT);
+  if (o.a < ALPHA_THRESHOLD) { //外发光
+    if (outerActive == 1.0) {
+      float jointStep = outerWidth / float(JOINT_COUNT);
+      float width = (outerWidth + jointStep) * min(brightness, 1.0);
+      float minDis = width;
+      for(int i = 0; i < ANGLE_COUNT; i ++ ) {
+        float radian = float(i) * radianStep;
+        vec2 dirVec = vec2(cos(radian), sin(radian));
+        for(int j = 0; j <= JOINT_COUNT; j ++ ) {
+          float dist = float(j) * jointStep;
+          if (getColor(cc_spriteTexture, scaleUv + (dist / texSize) * dirVec).a > ALPHA_THRESHOLD) {
+            minDis = min(minDis, dist);
+            break;
+          }
+        }
+      }
+      if (minDis < width) {
+        if (outerStyle == 0.0)o = outerColor;
+        else if (outerStyle == 1.0)o = vec4(outerColor.rgb, outerColor.a * smoothstep(width, 0.0, minDis));
+        else if (outerStyle == 2.0)o = outerColor * smoothstep(width, 0.0, minDis);
+      }
+    }
+  }else { //内发光
+    if (innerActive == 1.0) {
+      float jointStep = innerWidth / float(JOINT_COUNT);
+      float width = (innerWidth + jointStep) * min(brightness, 1.0);
+      float minDis = width;
+      for(int i = 0; i < ANGLE_COUNT; i ++ ) {
+        float radian = float(i) * radianStep;
+        vec2 dirVec = vec2(cos(radian), sin(radian));
+        for(int j = 0; j <= JOINT_COUNT; j ++ ) {
+          float dist = float(j) * jointStep;
+          if (getColor(cc_spriteTexture, scaleUv + (dist / texSize) * dirVec).a < ALPHA_THRESHOLD) {
+            minDis = min(minDis, dist);
+            break;
+          }
+        }
+      }
+      if (minDis < width) {
+        if (innerStyle == 0.0)o = innerColor;
+        else if (innerStyle == 1.0)o.rgb = mix(o.rgb, innerColor.rgb, innerColor.a * smoothstep(innerWidth, 0.0, minDis));
+        else if (innerStyle == 2.0) {
+          vec4 c = innerColor * smoothstep(width, 0.0, minDis);
+          o.rgb = mix(o.rgb, c.rgb, c.a);
+        };
+      }
+    }
+  }
+  if (outerActive == 1.0) { //外发光照亮原图
+    o.rgb = mix(o.rgb, outerColor.rgb, brightness * 0.1);
+  }
+  o.rgb *= brightness; //添加明暗度
+  return o;
+}
+}%

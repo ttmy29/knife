@@ -1,4 +1,4 @@
-import { _decorator, Component, Label, Vec2, UITransform, sp } from 'cc';
+import { _decorator, Component, Label, Node, Vec2, UITransform, sp } from 'cc';
 import { Grid } from './Grid';
 
 const { ccclass, property } = _decorator;
@@ -94,6 +94,13 @@ export class Monster extends Component {
     /** 更新头顶数字（战斗中分段跳动用） */
     setLabelText(text: string): void {
         if (this.powerLabel) this.powerLabel.string = text;
+    }
+
+    getPowerLabelGlowRoot(): Node | null {
+        if (!this.powerLabel || !this.powerLabel.node || !this.powerLabel.node.isValid) return null;
+        const parent = this.powerLabel.node.parent;
+        if (parent && parent !== this.node) return parent;
+        return this.powerLabel.node;
     }
 
     /** 攻击动画播完回调 */

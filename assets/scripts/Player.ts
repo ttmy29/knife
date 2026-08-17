@@ -1,4 +1,4 @@
-import { _decorator, Component, Label, Vec2, Vec3, tween, sp } from 'cc';
+import { _decorator, Component, Label, Node, UITransform, Vec2, Vec3, tween, sp } from 'cc';
 import { Grid } from './Grid';
 import { Monster } from './Monster';
 import { Chest } from './Chest';
@@ -41,6 +41,10 @@ export class Player extends Component {
     private animName = 'idle';
     /** 经验球缩放脉冲乘数（不影响朝向） */
     private pulseScale = 1;
+    private spineNode: Node | null = null;
+    private expWhiteGlow: Node | null = null;
+    private hideExpWhiteGlowTask: (() => void) | null = null;
+    private readonly expWhiteGlowPadding = 80;
     /** 失败后禁止再移动 / 寻路 */
     public dead = false;
 
@@ -48,6 +52,15 @@ export class Player extends Component {
     setInitialFacing(dir: number): void {
         this.facing = dir < 0 ? -1 : 1;
         this.applyFacing();
+    }
+
+    getFacing(): number {
+        return this.node.scale.x < 0 ? -1 : 1;
+    }
+
+    faceToWorldX(worldX: number): void {
+        if (worldX < this.node.position.x) this.setFacing(-1);
+        else if (worldX > this.node.position.x) this.setFacing(1);
     }
 
     init(power: number, col: number, row: number, grid: Grid): void {
@@ -66,9 +79,11 @@ export class Player extends Component {
         this.baseScaleX = Math.abs(this.node.scale.x);
         this.baseScaleY = this.node.scale.y;
         this.baseScaleZ = this.node.scale.z;
-        this.facing = 1;
+        this.facing = this.node.scale.x < 0 ? -1 : 1;
         // spine 下的每个子节点各挂了一个 Skeleton，全部拿下来一起播
+        this.spineNode = this.node.getChildByName('spine');
         this.skeletons = this.node.getComponentsInChildren(sp.Skeleton);
+        this.setupExpWhiteGlow();
         this.dead = false;
         this.applyFacing();
         this.node.setPosition(grid.gridToWorld(col, row));
@@ -140,13 +155,103 @@ export class Player extends Component {
         this.playAnim('die', false);
     }
 
-    /** 收到经验球反馈：0.1s 缩放变 1.2，再 0.1s 恢复（白光后续再加） */
+    /** 收到经验球反馈：白光短闪 + 0.1s 缩放变 1.2，再 0.1s 恢复 */
     playExpPulse(): void {
+        this.playExpWhiteGlow();
         this.pulseScale = 1;
         tween(this)
             .to(0.1, { pulseScale: 1.2 }, { easing: 'quadOut', onUpdate: () => this.applyFacing() })
             .to(0.1, { pulseScale: 1 }, { easing: 'quadIn', onUpdate: () => this.applyFacing() })
             .start();
+    }
+
+    private setupExpWhiteGlow(): void {
+        this.expWhiteGlow = this.node.getChildByName('ExpWhiteGlow');
+        if (!this.expWhiteGlow) return;
+        this.syncExpWhiteGlowBounds();
+        this.assignExpWhiteGlowTarget();
+        this.expWhiteGlow.active = false;
+    }
+
+    private assignExpWhiteGlowTarget(): void {
+        if (!this.expWhiteGlow || !this.spineNode) return;
+        const snapshot = this.expWhiteGlow.getComponent('Snapshot') as any;
+        if (snapshot) {
+            snapshot.target = this.spineNode;
+        }
+    }
+
+    private playExpWhiteGlow(): void {
+        if (!this.expWhiteGlow) this.setupExpWhiteGlow();
+        if (!this.expWhiteGlow || !this.spineNode) return;
+
+        this.syncExpWhiteGlowBounds();
+        this.assignExpWhiteGlowTarget();
+        if (this.hideExpWhiteGlowTask) {
+            this.unschedule(this.hideExpWhiteGlowTask);
+            this.hideExpWhiteGlowTask = null;
+        }
+
+        this.expWhiteGlow.active = true;
+        this.hideExpWhiteGlowTask = () => {
+            if (this.expWhiteGlow && this.expWhiteGlow.isValid) this.expWhiteGlow.active = false;
+            this.hideExpWhiteGlowTask = null;
+        };
+        this.scheduleOnce(this.hideExpWhiteGlowTask, 0.2);
+    }
+
+    private syncExpWhiteGlowBounds(): void {
+        if (!this.expWhiteGlow || !this.spineNode) return;
+
+        const roleUI = this.node.getComponent(UITransform);
+        const glowUI = this.expWhiteGlow.getComponent(UITransform);
+        if (!roleUI || !glowUI) return;
+
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        const temp = new Vec3();
+
+        const collect = (node: Node) => {
+            const ui = node.getComponent(UITransform);
+            if (ui && node !== this.expWhiteGlow) {
+                const width = ui.width;
+                const height = ui.height;
+                const left = -ui.anchorX * width;
+                const right = (1 - ui.anchorX) * width;
+                const bottom = -ui.anchorY * height;
+                const top = (1 - ui.anchorY) * height;
+                const corners = [
+                    new Vec3(left, bottom, 0),
+                    new Vec3(left, top, 0),
+                    new Vec3(right, bottom, 0),
+                    new Vec3(right, top, 0),
+                ];
+                for (const corner of corners) {
+                    const world = ui.convertToWorldSpaceAR(corner);
+                    roleUI.convertToNodeSpaceAR(world, temp);
+                    minX = Math.min(minX, temp.x);
+                    minY = Math.min(minY, temp.y);
+                    maxX = Math.max(maxX, temp.x);
+                    maxY = Math.max(maxY, temp.y);
+                }
+            }
+            for (const child of node.children) collect(child);
+        };
+        collect(this.spineNode);
+
+        if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) return;
+
+        const width = Math.max(1, maxX - minX + this.expWhiteGlowPadding);
+        const height = Math.max(1, maxY - minY + this.expWhiteGlowPadding);
+        this.expWhiteGlow.setPosition((minX + maxX) * 0.5, (minY + maxY) * 0.5, 0);
+        this.expWhiteGlow.setScale(this.facing < 0 ? -1 : 1, 1, 1);
+        glowUI.setAnchorPoint(0.5, 0.5);
+        glowUI.setContentSize(width, height);
+
+        const snapshot = this.expWhiteGlow.getComponent('Snapshot') as any;
+        if (snapshot && snapshot.updateSize) snapshot.updateSize();
     }
 
     private onceAnimComplete(cb: () => void): void {
