@@ -1,0 +1,52 @@
+{
+  "package_version": 2,
+  "version": "3.0.0",
+  "name": "cc-3-8-x-mcp",
+  "title": "CC 3.8.x MCP Editor Bridge",
+  "description": "把 Cocos Creator 3.8.x 编辑器能力通过私有本机 Bridge 接入全局 cocos-mcp-gateway；兼容原 dev-reload 信号文件通道",
+  "license": "Apache-2.0",
+  "author": "付饶",
+  "editor": ">=3.8.0 <3.9.0",
+  "main": "./main.js",
+  "panels": {
+    "default": {
+      "title": "Cocos MCP",
+      "type": "dockable",
+      "main": "panel/index.js",
+      "size": {
+        "min-width": 340,
+        "min-height": 460,
+        "width": 400,
+        "height": 560
+      }
+    }
+  },
+  "contributions": {
+    "menu": [
+      {
+        "path": "i18n:menu.extension/Cocos MCP",
+        "label": "功能面板",
+        "message": "open-panel"
+      },
+      {
+        "path": "i18n:menu.extension/Cocos MCP",
+        "label": "重启 Editor Bridge",
+        "message": "restart-bridge"
+      }
+    ],
+    "messages": {
+      "open-panel": { "methods": ["openPanel"] },
+      "restart-bridge": { "methods": ["restartBridge"] },
+      "get-bridge-config": { "methods": ["getBridgeConfig"] },
+      "get-status": { "methods": ["getStatus"] },
+      "refresh-assets": { "methods": ["refreshAssets"] },
+      "query-preview-url": { "methods": ["queryPreviewUrl"] },
+      "trigger-refresh": { "methods": ["triggerRefresh"] },
+      "trigger-reimport": { "methods": ["triggerReimport"] },
+      "soft-reload-scene": { "methods": ["softReloadScene"] },
+      "clean-dev-dir": { "methods": ["cleanDevDir"] },
+      "list-worktrees": { "methods": ["listWorktrees"] },
+      "open-dev-dir": { "methods": ["openDevDir"] }
+    }
+  }
+}

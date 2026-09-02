@@ -32,7 +32,7 @@
           "2d": {
             "_value": true
           },
-          "sorting-2d": {
+          "xr": {
             "_value": false
           },
           "rich-text": {
@@ -186,9 +186,12 @@
           "legacy-pipeline": {
             "_value": false
           },
-          "xr": {
+          "sorting-2d": {
             "_value": false
           }
+        },
+        "flags": {
+          "LOAD_SPINE_MANUALLY": false
         },
         "includeModules": [
           "2d",
@@ -217,8 +220,7 @@
         "noDeprecatedFeatures": {
           "value": false,
           "version": ""
-        },
-        "flags": {}
+        }
       }
     },
     "globalConfigKey": "defaultConfig"

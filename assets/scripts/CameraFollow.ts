@@ -1,11 +1,11 @@
-import { _decorator, Camera, clamp, Component, Node, Rect, UITransform, Vec3, view } from 'cc';
+import { _decorator, Camera, clamp, Component, Node, Rect, tween, Tween, UITransform, Vec3, view } from 'cc';
 
 const { ccclass, property } = _decorator;
 
 /**
  * 相机跟随：
  * - 开局第一帧直接对准角色（身体中心）；
- * - 角色在死区内（画布尺寸 x deadZoneRatio）移动时相机不动，超出后以固定速度匀速追，追上即停；
+ * - 之后每帧直接跟随角色目标点；
  * - 相机中心限制在地图边界内（用背景节点的世界包围盒计算，自动包含 GameWorld 的缩放和位移）。
  */
 @ccclass('CameraFollow')
@@ -13,17 +13,13 @@ export class CameraFollow extends Component {
     @property(Node)
     target: Node | null = null;
 
-    /** 跟随速度（比角色移速慢，产生追尾感）*/
-    @property
-    followSpeed = 220;
-
-    /** 死区比例：0 = 一直跟随；>0 时角色偏移超过画布尺寸 x 该比例才开始跟随 */
-    @property
-    deadZoneRatio = 0;
-
     /** 垂直对准偏移：相机中心对准角色上方该距离（世界单位），角色显示在屏幕中心偏下 */
     @property
     targetOffsetY = 200;
+
+    /** 水平对准偏移：正数让镜头中心向右移动。 */
+    @property
+    targetOffsetX = 0;
 
     /** 边界参考节点：留空则自动找场景里的 bg 节点（取它的世界包围盒） */
     @property(Node)
@@ -34,6 +30,7 @@ export class CameraFollow extends Component {
 
     /** 地图边界（世界坐标） */
     private bounds: Rect | null = null;
+    private transitioning = false;
 
     start(): void {
         this.bounds = this.getBounds();
@@ -41,7 +38,44 @@ export class CameraFollow extends Component {
         this.snapToTarget();
     }
 
-    lateUpdate(dt: number): void {
+    /** 角色还没生成时，也可以按它将要出现的世界坐标直接对准。 */
+    snapToWorldPosition(worldPos: Vec3): void {
+        Tween.stopAllByTarget(this.node);
+        this.transitioning = false;
+        this.bounds = this.getBounds();
+        const aimWorld = new Vec3(worldPos.x + this.targetOffsetX, worldPos.y + this.targetOffsetY, worldPos.z);
+        this.snapToAimWorld(aimWorld);
+    }
+
+    /** 从当前位置缓慢移动到目标，移动期间暂停普通跟随。 */
+    moveToWorldPosition(worldPos: Vec3, duration: number, onComplete?: () => void): void {
+        const parent = this.node.parent;
+        const ut = parent ? parent.getComponent(UITransform) : null;
+        if (!ut) {
+            if (onComplete) onComplete();
+            return;
+        }
+
+        this.bounds = this.getBounds();
+        const aimWorld = new Vec3(worldPos.x + this.targetOffsetX, worldPos.y + this.targetOffsetY, worldPos.z);
+        this.clampAim(aimWorld);
+        const local = ut.convertToNodeSpaceAR(aimWorld);
+        const destination = new Vec3(local.x, local.y, this.node.position.z);
+
+        Tween.stopAllByTarget(this.node);
+        this.transitioning = true;
+        tween(this.node)
+            .to(Math.max(0, duration), { position: destination }, { easing: 'sineInOut' })
+            .call(() => {
+                this.transitioning = false;
+                this.aligned = true;
+                if (onComplete) onComplete();
+            })
+            .start();
+    }
+
+    lateUpdate(): void {
+        if (this.transitioning) return;
         if (!this.target || !this.target.isValid) return;
         const parent = this.node.parent;
         if (!parent) return;
@@ -50,62 +84,51 @@ export class CameraFollow extends Component {
 
         // 对准点 = 角色脚底向上偏移到身体中心，再叠加 targetOffsetY
         const worldPos = this.target.worldPosition;
-        const aimWorld = new Vec3(worldPos.x, worldPos.y + this.targetOffsetY, worldPos.z);
-        // 先做边界夹紧，再转成父节点局部坐标
-        this.clampAim(aimWorld);
+        const aimWorld = new Vec3(worldPos.x + this.targetOffsetX, worldPos.y + this.targetOffsetY, worldPos.z);
         const local = ut.convertToNodeSpaceAR(aimWorld);
-        const cam = this.node.position;
 
-        // 初始对准角色：第一帧直接放到角色位置，之后才按死区规则走
+        // 初始对准角色：第一帧直接放到角色位置
         if (!this.aligned) {
             this.snapToTarget();
             return;
         }
 
-        const halfW = ut.width * this.deadZoneRatio;
-        const halfH = ut.height * this.deadZoneRatio;
-
-        const offX = local.x - cam.x;
-        const offY = local.y - cam.y;
-        // 微小偏移直接吸附，避免开局/停下时缓慢微调
-        if (Math.abs(offX) < 4 && Math.abs(offY) < 4) {
-            this.node.setPosition(local.x, local.y, cam.z);
-            return;
-        }
-        const outX = Math.abs(offX) > halfW;
-        const outY = Math.abs(offY) > halfH;
-        if (!outX && !outY) return; // 死区内：不跟随
-        // 朝角色方向匀速移动（对角方向归一化，速度恒定）
-        let dirX = 0;
-        let dirY = 0;
-        if (outX) dirX = offX > 0 ? 1 : -1;
-        if (outY) dirY = offY > 0 ? 1 : -1;
-        const len = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
-        const step = this.followSpeed * dt;
-        let nx = cam.x + (dirX / len) * step;
-        let ny = cam.y + (dirY / len) * step;
-        // 防止越过角色
-        if (dirX > 0 && nx > local.x) nx = local.x;
-        if (dirX < 0 && nx < local.x) nx = local.x;
-        if (dirY > 0 && ny > local.y) ny = local.y;
-        if (dirY < 0 && ny < local.y) ny = local.y;
-        this.node.setPosition(nx, ny, cam.z);
+        const cam = this.node.position;
+        const desired = this.clampCameraLocal(new Vec3(local.x, local.y, cam.z), ut);
+        this.node.setPosition(desired.x, desired.y, cam.z);
     }
 
     /** 直接把相机对准角色（身体中心） */
     private snapToTarget(): void {
         if (!this.target || !this.target.isValid) return;
+        const worldPos = this.target.worldPosition;
+        const aimWorld = new Vec3(worldPos.x + this.targetOffsetX, worldPos.y + this.targetOffsetY, worldPos.z);
+        this.snapToAimWorld(aimWorld);
+    }
+
+    setTargetOffsetX(offset: number, snap = false): void {
+        this.targetOffsetX = offset;
+        if (snap) this.snapToTarget();
+    }
+
+    private snapToAimWorld(aimWorld: Vec3): void {
         const parent = this.node.parent;
         if (!parent) return;
         const ut = parent.getComponent(UITransform);
         if (!ut) return;
-        const worldPos = this.target.worldPosition;
-        const aimWorld = new Vec3(worldPos.x, worldPos.y + this.targetOffsetY, worldPos.z);
         this.clampAim(aimWorld);
         const local = ut.convertToNodeSpaceAR(aimWorld);
         const cam = this.node.position;
         this.node.setPosition(local.x, local.y, cam.z);
         this.aligned = true;
+    }
+
+    private clampCameraLocal(local: Vec3, parentTransform: UITransform): Vec3 {
+        const world = parentTransform.convertToWorldSpaceAR(local);
+        this.clampAim(world);
+        const clamped = parentTransform.convertToNodeSpaceAR(world);
+        clamped.z = local.z;
+        return clamped;
     }
 
     /**
@@ -155,5 +178,9 @@ export class CameraFollow extends Component {
             if (hit) return hit;
         }
         return null;
+    }
+
+    onDestroy(): void {
+        Tween.stopAllByTarget(this.node);
     }
 }

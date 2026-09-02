@@ -17,6 +17,8 @@ interface DashSeg {
 export class PathLine extends Component {
     /** 拐角圆角半径（世界单位），由 GameManager 设置 */
     public cornerRadius = 14;
+    /** 移动过程中重画剩余路径的最小间隔（秒）。 */
+    public redrawInterval = 0.06;
 
     private graphics: Graphics | null = null;
     private points: Vec3[] = [];
@@ -25,6 +27,7 @@ export class PathLine extends Component {
     private cachedPts: Vec3[] = [];
     /** 虚线分段（锚定在路径几何上） */
     private dashSegs: DashSeg[] = [];
+    private redrawElapsed = 0;
 
     onLoad(): void {
         this.graphics = this.node.getComponent(Graphics) || this.node.addComponent(Graphics);
@@ -36,6 +39,7 @@ export class PathLine extends Component {
         this.target = target;
         this.cachedPts = this.buildPolyline(worldPoints);
         this.buildDashes();
+        this.redrawElapsed = 0;
         if (this.graphics) {
             this.graphics.clear();
             this.drawTargetCircle(this.graphics);
@@ -44,11 +48,15 @@ export class PathLine extends Component {
     }
 
     /**
-     * 每帧调用：绿线固定在地面上，只擦掉角色身后的部分。
+     * 移动时调用：按 redrawInterval 限频，只擦掉角色身后的部分。
      * 把角色位置投影到已缓存的折线上，画出剩余里程的虚线段。
      */
-    updateRemaining(origin: Vec3): void {
+    updateRemaining(origin: Vec3, dt: number): void {
         if (!this.graphics) return;
+        const interval = Math.max(0, this.redrawInterval);
+        this.redrawElapsed += Math.max(0, dt);
+        if (interval > 0 && this.redrawElapsed < interval) return;
+        this.redrawElapsed = interval > 0 ? this.redrawElapsed % interval : 0;
         const g = this.graphics;
         g.clear();
         if (this.target) this.drawTargetCircle(g);
@@ -67,6 +75,7 @@ export class PathLine extends Component {
         this.target = null;
         this.cachedPts = [];
         this.dashSegs = [];
+        this.redrawElapsed = 0;
         if (this.graphics) this.graphics.clear();
     }
 
@@ -212,11 +221,11 @@ export class PathLine extends Component {
     private drawTargetCircle(g: Graphics): void {
         if (!this.target) return;
         g.fillColor = new Color(74, 255, 106, 90);
-        g.circle(this.target.x, this.target.y, 16);
+        g.circle(this.target.x, this.target.y, 12);//圆圈半径 之前是16
         g.fill();
         g.lineWidth = 3;
         g.strokeColor = new Color(74, 255, 106, 255);
-        g.circle(this.target.x, this.target.y, 16);
+        g.circle(this.target.x, this.target.y, 12);
         g.stroke();
     }
 }

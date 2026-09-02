@@ -5,6 +5,19 @@ import { LevelData } from './GameConfig';
 
 const { ccclass } = _decorator;
 
+interface OccupantHit {
+    cell: Vec2;
+    monster: Monster | null;
+    chest: Chest | null;
+    entry?: Vec3;
+}
+
+export interface MonsterPathHit {
+    monster: Monster;
+    entry: Vec3;
+    segmentIndex: number;
+}
+
 /**
  * 格子地图：墙体占用表 + 怪物占用表 + A* 寻路。
  * 挂在 GameWorld 上（GameManager 会自动添加）。
@@ -19,6 +32,7 @@ export class Grid extends Component {
     private heights: number[][] = [];
     private stairs: boolean[][] = [];
     private monsterMap: Map<string, Monster> = new Map();
+    private monsters: Set<Monster> = new Set();
     private chestMap: Map<string, Chest> = new Map();
 
     init(data: LevelData): void {
@@ -81,12 +95,22 @@ export class Grid extends Component {
      * - 高度差 > 1 -> 不可通行
      */
     canMove(from: Vec2, to: Vec2, stairsBlocked = false): boolean {
-        if (!this.inBounds(to.x, to.y) || this.isWall(to.x, to.y)) return false;
+        return this.canMoveCells(from.x, from.y, to.x, to.y, stairsBlocked);
+    }
+
+    private canMoveCells(
+        fromCol: number,
+        fromRow: number,
+        toCol: number,
+        toRow: number,
+        stairsBlocked = false,
+    ): boolean {
+        if (!this.inBounds(toCol, toRow) || this.isWall(toCol, toRow)) return false;
         // 同层寻路（如地面到地面）时，台阶视为墙，不能借台阶穿过平台
-        if (stairsBlocked && (this.isStair(from.x, from.y) || this.isStair(to.x, to.y))) return false;
-        const diff = Math.abs(this.getHeight(to.x, to.y) - this.getHeight(from.x, from.y));
+        if (stairsBlocked && (this.isStair(fromCol, fromRow) || this.isStair(toCol, toRow))) return false;
+        const diff = Math.abs(this.getHeight(toCol, toRow) - this.getHeight(fromCol, fromRow));
         if (diff === 0) return true;
-        if (diff === 1 && (this.isStair(from.x, from.y) || this.isStair(to.x, to.y))) return true;
+        if (diff === 1 && (this.isStair(fromCol, fromRow) || this.isStair(toCol, toRow))) return true;
         return false;
     }
 
@@ -95,12 +119,14 @@ export class Grid extends Component {
     }
 
     addMonster(m: Monster): void {
+        this.monsters.add(m);
         for (const cell of m.cells) {
             this.monsterMap.set(this.key(cell.x, cell.y), m);
         }
     }
 
     removeMonster(m: Monster): void {
+        this.monsters.delete(m);
         for (const cell of m.cells) {
             const k = this.key(cell.x, cell.y);
             if (this.monsterMap.get(k) === m) {
@@ -143,28 +169,51 @@ export class Grid extends Component {
      * 先用格子遍历快速找候选格，再用真实线段与格子矩形做精确相交校验，
      * 避免角色停在贴墙角点（偏离格心）时"格心连线"误判碰到怪物。
      */
-    firstOccupantOnSegment(a: Vec3, b: Vec3): { cell: Vec2; monster: Monster | null; chest: Chest | null } | null {
+    firstOccupantOnSegment(a: Vec3, b: Vec3, ignoredMonster: Monster | null = null): OccupantHit | null {
         const ca = this.worldToGrid(a);
         const cb = this.worldToGrid(b);
         if (!ca || !cb) return null;
         let x = ca.x;
         let y = ca.y;
-        // 角色当前站着的怪物/宝箱不算：必须"移动进入"才触发，
-        // 避免打完上一只后站在别的占格里被秒开战/秒开箱
-        const standMonster = this.getMonsterAt(x, y);
+        let bestHit: OccupantHit | null = null;
+        let bestDistSq = Infinity;
+
+        // 怪物格只用于登记；战斗使用脚下圆的真实进入点，避免整格提前触发。
+        const center = new Vec3();
+        for (const monster of this.monsters) {
+            if (monster === ignoredMonster) continue;
+            if (!monster.node || !monster.node.isValid) continue;
+            // 黄光会临时改变怪物父节点，圆心始终换算回 GameWorld 本地坐标。
+            this.node.inverseTransformPoint(center, monster.node.worldPosition);
+            const entry = this.segmentCircleEntry(a, b, center, monster.battleRadius);
+            if (!entry) continue;
+            const distSq = (entry.x - a.x) ** 2 + (entry.y - a.y) ** 2;
+            if (distSq < bestDistSq) {
+                bestDistSq = distSq;
+                bestHit = {
+                    cell: new Vec2(monster.gridCol, monster.gridRow),
+                    monster,
+                    chest: null,
+                    entry,
+                };
+            }
+        }
+
+        // 角色当前站着的宝箱不算：必须移动进入才触发。
         const standChest = this.getChestAt(x, y);
-        const check = (cx: number, cy: number): { cell: Vec2; monster: Monster | null; chest: Chest | null } | null => {
-            const m = this.getMonsterAt(cx, cy);
+        const check = (cx: number, cy: number): void => {
             const c = this.getChestAt(cx, cy);
-            if (m && m !== standMonster && this.segmentIntersectsCell(a, b, cx, cy)) {
-                return { cell: new Vec2(cx, cy), monster: m, chest: null };
+            if (c && c !== standChest) {
+                const entry = this.segmentCellEntry(a, b, cx, cy);
+                if (!entry) return;
+                const distSq = (entry.x - a.x) ** 2 + (entry.y - a.y) ** 2;
+                if (distSq < bestDistSq) {
+                    bestDistSq = distSq;
+                    bestHit = { cell: new Vec2(cx, cy), monster: null, chest: c };
+                }
             }
-            if (c && c !== standChest && this.segmentIntersectsCell(a, b, cx, cy)) {
-                return { cell: new Vec2(cx, cy), monster: null, chest: c };
-            }
-            return null;
         };
-        if (x === cb.x && y === cb.y) return null;
+        if (x === cb.x && y === cb.y) return bestHit;
         const dx = cb.x - ca.x;
         const dy = cb.y - ca.y;
         const stepX = dx > 0 ? 1 : (dx < 0 ? -1 : 0);
@@ -190,18 +239,50 @@ export class Grid extends Component {
                 tMaxX += tDeltaX;
                 tMaxY += tDeltaY;
                 // 只算真正进入的格子；斜穿角时路径只是擦过旁边格，不算碰到
-                const hit = check(x, y);
-                if (hit) return hit;
+                check(x, y);
                 continue;
             }
-            const hit = check(x, y);
-            if (hit) return hit;
+            check(x, y);
+        }
+        return bestHit;
+    }
+
+    /** 按路径先后顺序查找第一只怪物；宝箱先出现时由原有开箱逻辑处理。 */
+    firstMonsterOnPath(waypoints: Vec3[]): MonsterPathHit | null {
+        for (let i = 0; i < waypoints.length - 1; i++) {
+            const hit = this.firstOccupantOnSegment(waypoints[i], waypoints[i + 1]);
+            if (!hit) continue;
+            if (!hit.monster) return null;
+            return {
+                monster: hit.monster,
+                entry: (hit.entry || waypoints[i + 1]).clone(),
+                segmentIndex: i,
+            };
         }
         return null;
     }
 
-    /** 真实线段 (a -> b) 是否进入格子 (col,row) 的矩形范围（Liang-Barsky 精确判定） */
-    private segmentIntersectsCell(a: Vec3, b: Vec3, col: number, row: number): boolean {
+    /** 线段进入怪物脚下圆的第一个点；已经在圆内时保持当前位置，不向后拉角色。 */
+    private segmentCircleEntry(a: Vec3, b: Vec3, center: Vec3, radius: number): Vec3 | null {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const fx = a.x - center.x;
+        const fy = a.y - center.y;
+        const lengthSq = dx * dx + dy * dy;
+        const radiusSq = radius * radius;
+        if (fx * fx + fy * fy <= radiusSq) return a.clone();
+        if (lengthSq <= 1e-8) return null;
+
+        const projection = fx * dx + fy * dy;
+        const discriminant = projection * projection - lengthSq * (fx * fx + fy * fy - radiusSq);
+        if (discriminant < 0) return null;
+        const t = (-projection - Math.sqrt(discriminant)) / lengthSq;
+        if (t < 0 || t > 1) return null;
+        return new Vec3(a.x + dx * t, a.y + dy * t, a.z);
+    }
+
+    /** 真实线段进入格子矩形的第一个点（Liang-Barsky 精确判定）。 */
+    private segmentCellEntry(a: Vec3, b: Vec3, col: number, row: number): Vec3 | null {
         const c = this.gridToWorld(col, row);
         const half = this.tileSize / 2;
         const minX = c.x - half;
@@ -217,19 +298,19 @@ export class Grid extends Component {
         const q = [a.x - minX, maxX - a.x, a.y - minY, maxY - a.y];
         for (let i = 0; i < 4; i++) {
             if (p[i] === 0) {
-                if (q[i] < 0) return false; // 平行且在外侧
+                if (q[i] < 0) return null; // 平行且在外侧
             } else {
                 const r = q[i] / p[i];
                 if (p[i] < 0) {
-                    if (r > t1) return false;
+                    if (r > t1) return null;
                     if (r > t0) t0 = r;
                 } else {
-                    if (r < t0) return false;
+                    if (r < t0) return null;
                     if (r < t1) t1 = r;
                 }
             }
         }
-        return true;
+        return new Vec3(a.x + dx * t0, a.y + dy * t0, a.z);
     }
 
     /** 格子中心 -> 世界坐标（地图以 GameWorld 原点为中心） */
@@ -264,6 +345,132 @@ export class Grid extends Component {
     }
 
     /**
+     * 从点击起点直接寻路到怪物左右扇区内的战斗点。
+     * 候选点按可达路径长度选择，目标怪物中心区域在寻路时视为障碍。
+     */
+    buildBattleApproachPath(startWorld: Vec3, hit: MonsterPathHit, distanceOverride?: number): Vec3[] | null {
+        const monster = hit.monster;
+        if (!monster.node || !monster.node.isValid) return null;
+        const startCell = this.worldToGrid(startWorld);
+        if (!startCell) return null;
+
+        const center = new Vec3();
+        this.node.inverseTransformPoint(center, monster.node.worldPosition);
+        const battleDistance = distanceOverride === undefined
+            ? monster.battleRadius
+            : Math.max(0, distanceOverride);
+        const radius = Math.max(battleDistance, this.tileSize * 1.5);
+        const limit = Math.max(0, Math.min(89, monster.battleAngleLimit));
+        const entryDx = hit.entry.x - center.x;
+        const entryDy = hit.entry.y - center.y;
+        const entryAngle = Math.atan2(entryDy, Math.max(0.001, Math.abs(entryDx))) * 180 / Math.PI;
+        const preferredSide = Math.abs(entryDx) > 0.5
+            ? Math.sign(entryDx)
+            : (Math.abs(startWorld.x - center.x) > 0.5 ? Math.sign(startWorld.x - center.x) : -1);
+        const desiredAngle = Math.max(-limit, Math.min(limit, entryAngle));
+        const angles: number[] = [];
+        const addAngle = (angle: number): void => {
+            const clamped = Math.max(-limit, Math.min(limit, angle));
+            if (!angles.some((value) => Math.abs(value - clamped) < 0.01)) angles.push(clamped);
+        };
+        addAngle(desiredAngle);
+        addAngle(0);
+        for (let angle = 10; angle <= limit; angle += 10) {
+            addAngle(desiredAngle - angle);
+            addAngle(desiredAngle + angle);
+        }
+        addAngle(-limit);
+        addAngle(limit);
+
+        let best: { path: Vec3[]; score: number } | null = null;
+        for (const side of [preferredSide, -preferredSide]) {
+            for (const angle of angles) {
+                const rad = angle * Math.PI / 180;
+                const candidate = new Vec3(
+                    center.x + side * Math.cos(rad) * radius,
+                    center.y + Math.sin(rad) * radius,
+                    startWorld.z,
+                );
+                const targetCell = this.worldToGrid(candidate);
+                if (!targetCell || this.isWall(targetCell.x, targetCell.y) || this.isStair(targetCell.x, targetCell.y)) continue;
+                if (this.isChestAt(targetCell.x, targetCell.y)) continue;
+                const targetOccupant = this.getMonsterAt(targetCell.x, targetCell.y);
+                if (targetOccupant && targetOccupant !== monster) continue;
+
+                const isBlocked = (col: number, row: number): boolean => {
+                    if (!this.inBounds(col, row) || this.isWall(col, row) || this.isChestAt(col, row)) return true;
+                    if ((col === startCell.x && row === startCell.y)
+                        || (col === targetCell.x && row === targetCell.y)) return false;
+                    const occupant = this.getMonsterAt(col, row);
+                    if (occupant && occupant !== monster) return true;
+                    if (occupant === monster) {
+                        const cellCenter = this.gridToWorld(col, row);
+                        const dx = cellCenter.x - center.x;
+                        const dy = cellCenter.y - center.y;
+                        const innerRadius = Math.max(this.tileSize, radius * 0.65);
+                        return dx * dx + dy * dy < innerRadius * innerRadius;
+                    }
+                    return false;
+                };
+                const stairsBlocked = this.getHeight(startCell.x, startCell.y) === this.getHeight(targetCell.x, targetCell.y)
+                    && !this.isStair(startCell.x, startCell.y)
+                    && !this.isStair(targetCell.x, targetCell.y);
+                if (this.hasLineOfSight(startCell, targetCell, stairsBlocked, false, isBlocked)) {
+                    const path = [startWorld.clone()];
+                    if (Vec3.distance(startWorld, candidate) > 0.01) path.push(candidate);
+                    const sidePenalty = side === preferredSide ? 0 : this.tileSize * 0.25;
+                    const score = this.pathLength(path) + sidePenalty;
+                    if (!best || score < best.score) best = { path, score };
+                    continue;
+                }
+                const raw = this.aStar(startCell, targetCell, isBlocked);
+                if (!raw) continue;
+                const path = this.buildCustomMovePath(startCell, raw, startWorld, candidate, isBlocked);
+                const sidePenalty = side === preferredSide ? 0 : this.tileSize * 0.25;
+                const score = this.pathLength(path) + sidePenalty;
+                if (!best || score < best.score) best = { path, score };
+            }
+        }
+        return best ? best.path : null;
+    }
+
+    private buildCustomMovePath(
+        startCell: Vec2,
+        raw: Vec2[],
+        startWorld: Vec3,
+        exactTarget: Vec3,
+        isBlocked: (col: number, row: number) => boolean,
+    ): Vec3[] {
+        const cells: Vec2[] = [startCell, ...raw];
+        const pulled: Vec2[] = [startCell];
+        const targetCell = cells[cells.length - 1];
+        const stairsBlocked = this.getHeight(startCell.x, startCell.y) === this.getHeight(targetCell.x, targetCell.y)
+            && !this.isStair(startCell.x, startCell.y)
+            && !this.isStair(targetCell.x, targetCell.y);
+        let index = 0;
+        while (index < cells.length - 1) {
+            let next = cells.length - 1;
+            while (next > index + 1
+                && !this.hasLineOfSight(cells[index], cells[next], stairsBlocked, false, isBlocked)) next--;
+            pulled.push(cells[next]);
+            index = next;
+        }
+
+        const path: Vec3[] = [startWorld.clone()];
+        for (let i = 1; i < pulled.length - 1; i++) {
+            path.push(this.wallHugCorner(pulled[i - 1], pulled[i], pulled[i + 1]));
+        }
+        if (Vec3.distance(path[path.length - 1], exactTarget) > 0.01) path.push(exactTarget);
+        return path;
+    }
+
+    private pathLength(path: Vec3[]): number {
+        let length = 0;
+        for (let i = 0; i < path.length - 1; i++) length += Vec3.distance(path[i], path[i + 1]);
+        return length;
+    }
+
+    /**
      * 生成实际移动路径：A* 路径字符串拉直 + 拐点贴墙偏移。
      * 返回世界坐标点列（首点为起点精确位置），路径沿墙体外侧 WALL_GAP 距离行走。
      */
@@ -283,7 +490,7 @@ export class Grid extends Component {
         let i = 0;
         while (i < pts.length - 1) {
             let j = pts.length - 1;
-            while (j > i + 1 && !this.hasLineOfSight(pts[i], pts[j], stairsBlocked, true)) j--;
+            while (j > i + 1 && !this.hasLineOfSight(pts[i], pts[j], stairsBlocked, false)) j--;
             pulled.push(pts[j]);
             i = j;
         }
@@ -340,11 +547,18 @@ export class Grid extends Component {
      * 两点之间直线是否可通行：从 a 格中心到 b 格中心做网格精确遍历（超覆盖），
      * 逐格检测墙 / 怪物 / 越界。原来的“沿线撒点”会在斜切墙角时漏检导致穿墙。
      */
-    private hasLineOfSight(a: Vec2, b: Vec2, stairsBlocked: boolean, blockOccupants = false): boolean {
+    private hasLineOfSight(
+        a: Vec2,
+        b: Vec2,
+        stairsBlocked: boolean,
+        blockOccupants = false,
+        customBlocked?: (col: number, row: number) => boolean,
+    ): boolean {
         if (a.x === b.x && a.y === b.y) return true;
         let x = a.x;
         let y = a.y;
-        if (this.blockedCell(x, y, blockOccupants)) return false;
+        const blocked = customBlocked || ((col: number, row: number) => this.blockedCell(col, row, blockOccupants));
+        if (blocked(x, y)) return false;
 
         const dx = b.x - a.x;
         const dy = b.y - a.y;
@@ -369,20 +583,20 @@ export class Grid extends Component {
                 y += stepY;
                 tMaxY += tDeltaY;
             } else {
-                if (this.blockedCell(x + stepX, y, blockOccupants)
-                    || this.blockedCell(x, y + stepY, blockOccupants)
-                    || this.blockedCell(x + stepX, y + stepY, blockOccupants)) {
+                if (blocked(x + stepX, y)
+                    || blocked(x, y + stepY)
+                    || blocked(x + stepX, y + stepY)) {
                     return false;
                 }
                 x += stepX;
                 y += stepY;
                 tMaxX += tDeltaX;
                 tMaxY += tDeltaY;
-                if (!this.canMove(new Vec2(prevX, prevY), new Vec2(x, y), stairsBlocked)) return false;
+                if (!this.canMoveCells(prevX, prevY, x, y, stairsBlocked)) return false;
                 continue;
             }
-            if (this.blockedCell(x, y, blockOccupants)) return false;
-            if (!this.canMove(new Vec2(prevX, prevY), new Vec2(x, y), stairsBlocked)) return false;
+            if (blocked(x, y)) return false;
+            if (!this.canMoveCells(prevX, prevY, x, y, stairsBlocked)) return false;
         }
         return true;
     }
@@ -393,15 +607,68 @@ export class Grid extends Component {
     }
 
     /** A*（四方向）；怪物格视为可通行，用于搜索，最终路径会在怪前截断 */
-    private aStar(start: Vec2, goal: Vec2): Vec2[] | null {
-        const key = (c: number, r: number) => c + ',' + r;
-        const open: Array<{ c: number; r: number; g: number; f: number }> = [];
-        const cameFrom = new Map<string, string>();
-        const gScore = new Map<string, number>();
-        const sKey = key(start.x, start.y);
-        open.push({ c: start.x, r: start.y, g: 0, f: this.heuristic(start, goal) });
-        gScore.set(sKey, 0);
-        const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    private aStar(start: Vec2, goal: Vec2, customBlocked?: (col: number, row: number) => boolean): Vec2[] | null {
+        interface OpenNode {
+            index: number;
+            g: number;
+            f: number;
+        }
+
+        const total = this.cols * this.rows;
+        const indexOf = (col: number, row: number): number => row * this.cols + col;
+        const startIndex = indexOf(start.x, start.y);
+        const goalIndex = indexOf(goal.x, goal.y);
+        const cameFrom = new Int32Array(total);
+        const gScore = new Float64Array(total);
+        cameFrom.fill(-1);
+        gScore.fill(Number.POSITIVE_INFINITY);
+        gScore[startIndex] = 0;
+
+        const open: OpenNode[] = [];
+        const isBefore = (a: OpenNode, b: OpenNode): boolean =>
+            a.f < b.f || (a.f === b.f && a.g > b.g);
+        const pushOpen = (node: OpenNode): void => {
+            let index = open.length;
+            open.push(node);
+            while (index > 0) {
+                const parent = (index - 1) >> 1;
+                if (!isBefore(open[index], open[parent])) break;
+                const tmp = open[parent];
+                open[parent] = open[index];
+                open[index] = tmp;
+                index = parent;
+            }
+        };
+        const popOpen = (): OpenNode | null => {
+            if (open.length === 0) return null;
+            const first = open[0];
+            const last = open.pop()!;
+            if (open.length > 0) {
+                open[0] = last;
+                let index = 0;
+                while (true) {
+                    const left = index * 2 + 1;
+                    if (left >= open.length) break;
+                    const right = left + 1;
+                    let next = left;
+                    if (right < open.length && isBefore(open[right], open[left])) next = right;
+                    if (!isBefore(open[next], open[index])) break;
+                    const tmp = open[index];
+                    open[index] = open[next];
+                    open[next] = tmp;
+                    index = next;
+                }
+            }
+            return first;
+        };
+        pushOpen({
+            index: startIndex,
+            g: 0,
+            f: Math.abs(start.x - goal.x) + Math.abs(start.y - goal.y),
+        });
+
+        const dirCols = [1, -1, 0, 0];
+        const dirRows = [0, 0, 1, -1];
         // 起点与终点同层（如地面到地面）且都不在台阶上时，台阶视为墙；
         // 目标是台阶 / 起点在台阶上时，台阶必须可走（上台阶、下台阶）
         const stairsBlocked = this.getHeight(start.x, start.y) === this.getHeight(goal.x, goal.y)
@@ -409,41 +676,39 @@ export class Grid extends Component {
             && !this.isStair(goal.x, goal.y);
 
         while (open.length > 0) {
-            open.sort((a, b) => a.f - b.f);
-            const cur = open.shift()!;
-            if (cur.c === goal.x && cur.r === goal.y) {
+            const cur = popOpen()!;
+            if (cur.g !== gScore[cur.index]) continue;
+            const curCol = cur.index % this.cols;
+            const curRow = Math.floor(cur.index / this.cols);
+            if (cur.index === goalIndex) {
                 const cells: Vec2[] = [];
-                let k = key(cur.c, cur.r);
-                while (true) {
-                    const parts = k.split(',');
-                    cells.push(new Vec2(parseInt(parts[0]), parseInt(parts[1])));
-                    if (!cameFrom.has(k)) break;
-                    k = cameFrom.get(k)!;
+                let index = goalIndex;
+                while (index !== startIndex) {
+                    cells.push(new Vec2(index % this.cols, Math.floor(index / this.cols)));
+                    index = cameFrom[index];
+                    if (index < 0) return null;
                 }
                 cells.reverse();
-                cells.shift(); // 去掉起点格
                 return cells;
             }
-            for (const d of dirs) {
-                const nc = cur.c + d[0];
-                const nr = cur.r + d[1];
-                if (!this.canMove(new Vec2(cur.c, cur.r), new Vec2(nc, nr), stairsBlocked)) continue;
-                const nk = key(nc, nr);
+            for (let i = 0; i < 4; i++) {
+                const nc = curCol + dirCols[i];
+                const nr = curRow + dirRows[i];
+                if (!this.canMoveCells(curCol, curRow, nc, nr, stairsBlocked)) continue;
+                if (customBlocked && customBlocked(nc, nr)) continue;
+                const nextIndex = indexOf(nc, nr);
                 const tentative = cur.g + 1;
-                if (!gScore.has(nk) || tentative < gScore.get(nk)!) {
-                    gScore.set(nk, tentative);
-                    cameFrom.set(nk, key(cur.c, cur.r));
-                    open.push({
-                        c: nc, r: nr, g: tentative,
-                        f: tentative + this.heuristic(new Vec2(nc, nr), goal),
+                if (tentative < gScore[nextIndex]) {
+                    gScore[nextIndex] = tentative;
+                    cameFrom[nextIndex] = cur.index;
+                    pushOpen({
+                        index: nextIndex,
+                        g: tentative,
+                        f: tentative + Math.abs(nc - goal.x) + Math.abs(nr - goal.y),
                     });
                 }
             }
         }
         return null;
-    }
-
-    private heuristic(a: Vec2, b: Vec2): number {
-        return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
     }
 }

@@ -1,6 +1,7 @@
 import {
-    _decorator, Component, Node, Prefab, instantiate, Graphics, UITransform,
-    Label, Color, Vec2, Vec3, input, Input, EventTouch, director, Button, Camera, Animation,
+    _decorator, Component, Node, Graphics, UITransform,
+    Label, Color, Vec2, Vec3, input, Input, EventTouch, director, Button, Camera, sp,
+    UIOpacity, tween, view,
 } from 'cc';
 import { Grid } from './Grid';
 import { Monster } from './Monster';
@@ -11,7 +12,20 @@ import { CameraFollow } from './CameraFollow';
 import { ExpOrb } from './ExpOrb';
 import { Chest } from './Chest';
 import { FailPanel } from './FailPanel';
+import { VictoryPanel } from './VictoryPanel';
 import { Level1 } from './GameConfig';
+import { AudioManager } from './core/AudioManager';
+import { PrefabManager } from './core/PrefabManager';
+import { AttackAudioType } from './config/ResourceConfig';
+import { PlayerRoleProfiles, PlayerRoleType } from './config/PlayerRoleConfig';
+import { FinalBossBattleConfig } from './config/FinalBossBattleConfig';
+import { OpeningSequenceConfig } from './config/OpeningSequenceConfig';
+import {
+    MonsterProfiles,
+    MonsterSpawnConfig,
+    MonsterViewportCullingConfig,
+} from './config/MonsterConfig';
+import { MonsterGuideConfig } from './config/MonsterGuideConfig';
 
 const { ccclass, property } = _decorator;
 
@@ -22,28 +36,32 @@ const { ccclass, property } = _decorator;
  */
 @ccclass('GameManager')
 export class GameManager extends Component {
-    @property({ type: Prefab })
-    playerPrefab: Prefab | null = null;
+    private static openingSequenceShownOnce = false;
 
-    /** 开箱后角色切换的形态（role1.prefab，动画名�?role 一致） */
-    @property({ type: Prefab })
-    role1Prefab: Prefab | null = null;
-
-    @property({ type: Prefab })
-    failPrefab: Prefab | null = null;
+    @property({ type: Node })
+    public finalBossMaskNode: Node | null = null;
 
     private grid: Grid | null = null;
     private player: Player | null = null;
+    private playerRoleType: PlayerRoleType = 'role';
     private pathLine: PathLine | null = null;
     private battleResultNode: Node | null = null;
     private uiLayer: Node | null = null;
     private camera: Camera | null = null;
     private dropsNode: Node | null = null;
+    private monsterColorLayer: Node | null = null;
+    private monsterLabelLayer: Node | null = null;
     private onPowerTick: (() => void) | null = null;
+    private pendingPowerGain = 0;
+    private powerGainAnimating = false;
     private battling = false;
     private retryButton: Node | null = null;
     private failPanel: Node | null = null;
+    private victoryPanel: Node | null = null;
     private finalMonster: Monster | null = null;
+    private monsters: Monster[] = [];
+    private activeBattleMonster: Monster | null = null;
+    private powerSuitChest: Chest | null = null;
     private glowHolder: Node | null = null;
     private glowingMonster: Monster | null = null;
     private glowingMonsterParent: Node | null = null;
@@ -56,12 +74,37 @@ export class GameManager extends Component {
     private glowingLabelScale: Vec3 | null = null;
     private glowingLabelActive = true;
     private hideGlowTask: (() => void) | null = null;
+    private guideNode: Node | null = null;
+    private monsterGuideActive = false;
+    private monsterGuideDismissed = false;
+    private openingSequenceActive = true;
+    private openingIntroStarted = false;
+    private openingAnimationComplete = false;
+    private openingCameraMoving = false;
+    private openingMonster: Monster | null = null;
+    private pendingGuideMonster: Monster | null = null;
+    private finisherSlowStartTimer: ReturnType<typeof setTimeout> | null = null;
+    private finisherSlowTimer: ReturnType<typeof setTimeout> | null = null;
+    private finisherHitStopTimer: ReturnType<typeof setTimeout> | null = null;
+    private finisherDeathTimer: ReturnType<typeof setTimeout> | null = null;
+    private finisherPlayer: Player | null = null;
+    private finisherMonster: Monster | null = null;
+    private finalBossCameraOrthoHeight: number | null = null;
+    private finalBossCameraOffsetX: number | null = null;
 
     onLoad(): void {
+        this.monsterGuideActive = false;
+        this.monsterGuideDismissed = false;
+        this.openingSequenceActive = !GameManager.openingSequenceShownOnce;
+        AudioManager.init(this.node);
+        AudioManager.playBgm();
+
         const canvas = this.node.parent;
         this.camera = canvas ? canvas.getComponentInChildren(Camera) : null;
         this.glowHolder = this.node.getChildByName('GlowHolder') || (canvas ? canvas.getChildByName('GlowHolder') : null);
         if (this.glowHolder) {
+            const snapshot = this.glowHolder.getComponent('Snapshot') as any;
+            if (snapshot) snapshot.snapshotLayer = 27;
             for (const child of this.glowHolder.children) {
                 if (child.name !== 'Camera') child.active = false;
             }
@@ -70,15 +113,16 @@ export class GameManager extends Component {
 
         this.grid = this.getComponent(Grid) || this.addComponent(Grid);
         this.grid.init(Level1);
+        this.alignCameraToOpeningTarget();
         this.bakeWallRegions();
 
         this.buildGround();
         this.buildDropsLayer();
         this.buildPathLine();
-        this.spawnPlayer();
-        this.spawnMonsters();
-        this.spawnChests();
+        this.setupMonsterRenderLayers();
         this.buildUI();
+        this.startMonsterViewportCulling();
+        void this.loadOpeningScene();
 
         input.on(Input.EventType.TOUCH_START, this.onTouchStart, this);
         input.on(Input.EventType.TOUCH_END, this.onTouchEnd, this);
@@ -86,11 +130,14 @@ export class GameManager extends Component {
     }
 
     onDestroy(): void {
+        this.restoreGameTimeScale();
+        this.hideGuideNode();
         this.hideMonsterGlow();
         input.off(Input.EventType.TOUCH_START, this.onTouchStart, this);
         input.off(Input.EventType.TOUCH_END, this.onTouchEnd, this);
         input.off(Input.EventType.TOUCH_CANCEL, this.onTouchCancel, this);
         if (this.onPowerTick) this.unschedule(this.onPowerTick);
+        this.unschedule(this.updateMonsterViewportVisibility);
     }
 
     // ---------------- 场景搭建 ----------------
@@ -168,10 +215,10 @@ export class GameManager extends Component {
 
     /**
      * 怪物死亡经验球掉落规则：
-     * 1) 角色战力 > 怪物：角色执行攻击动画时，立刻生�?2 个经验球（在怪物位置�?     * 2) 散落方向看怪物在角色的方位：左�?/ 左下 / 右上 / 右下
-     * 3) 2 个球 0.3s 抛物线散落（一个移�?60、一�?90），0.1s 后再抛物线移�?30
-     * 4) 运动完成�?0.1s，经验球飞向角色
-     * 5) 中途怪物头顶数字保持 0 不动�? 个球到达角色后，怪物与球一起消�?     */
+     * 1) 角色攻击完成后，在怪物位置生成 2 个经验球。
+     * 2) 逻辑战力在怪物被击败时立即增加；经验球到达后只更新显示数字。
+     * 3) 怪物死亡动画独立播放，动画完成即可隐藏，不等待经验球。
+     */
     private startExpOrbDrop(monster: Monster, onComplete: () => void): void {
         if (!this.player) {
             onComplete();
@@ -187,14 +234,21 @@ export class GameManager extends Component {
         const orb1 = this.spawnExpOrb(monsterPos, 0);
         const orb2 = this.spawnExpOrb(monsterPos, 0);
         let arrived = 0;
+        let completed = false;
+        const finish = () => {
+            if (completed) return;
+            completed = true;
+            onComplete();
+        };
         const onArrive = () => {
             arrived++;
+            if (arrived === 1) AudioManager.playExpCollect();
             if (arrived >= 2) {
                 if (orb1.node && orb1.node.isValid) orb1.node.destroy();
                 if (orb2.node && orb2.node.isValid) orb2.node.destroy();
                 // 收到经验球：角色缩放脉冲
                 if (this.player) this.player.playExpPulse();
-                onComplete();
+                finish();
             }
         };
 
@@ -222,10 +276,11 @@ export class GameManager extends Component {
             }
         }, 0.8);
         this.scheduleOnce(() => {
+            if (completed) return;
             if (orb1.node && orb1.node.isValid) orb1.node.destroy();
             if (orb2.node && orb2.node.isValid) orb2.node.destroy();
             if (this.player && arrived < 2) this.player.playExpPulse();
-            onComplete();
+            finish();
         }, 3);
     }
 
@@ -233,11 +288,12 @@ export class GameManager extends Component {
         const container = this.node.getChildByName('Player');
         if (!container || !this.grid) return;
         let node: Node;
-        if (this.playerPrefab) {
-            node = instantiate(this.playerPrefab);
+        try {
+            node = PrefabManager.createRole();
             node.name = 'PlayerInstance';
             this.fitToTile(node, 50);
-        } else {
+        } catch (err) {
+            console.error('[GameManager] create role prefab failed', err);
             node = this.createPlaceholder(Level1.tileSize * 0.6, new Color(90, 200, 255, 255));
             node.name = 'PlayerPlaceholder';
         }
@@ -245,7 +301,59 @@ export class GameManager extends Component {
         const player = node.addComponent(Player);
         player.init(Level1.playerPower, Level1.playerSpawn.col, Level1.playerSpawn.row, this.grid);
         this.bindPlayerEvents(player);
+        this.applyPlayerRoleProfile(player, 'role');
         this.player = player;
+        this.assignCameraTarget();
+        this.tryMoveOpeningCameraToPlayer();
+    }
+
+    private async loadStartupPrefabs(): Promise<void> {
+        try {
+            await PrefabManager.loadRole();
+            this.spawnPlayer();
+        } catch (err) {
+            console.error('[GameManager] load role prefabs failed', err);
+            this.spawnPlayer();
+        }
+
+        try {
+            await Promise.all([
+                PrefabManager.loadRole1(),
+                PrefabManager.loadRole2(),
+                PrefabManager.loadFail(),
+                PrefabManager.loadVictory(),
+            ]);
+        } catch (err) {
+            console.error('[GameManager] load result prefabs failed', err);
+        }
+    }
+
+    /** 并行完成所有开场资源实例化，再开始 Boss 演出，避免加载与镜头移动争抢帧时间。 */
+    private async loadOpeningScene(): Promise<void> {
+        try {
+            await Promise.all([
+                this.loadStartupPrefabs(),
+                this.spawnMonsters(),
+                this.spawnInitialChest(),
+                this.spawnPowerSuit(),
+                AudioManager.preloadFinalBossSounds(),
+                AudioManager.preloadRoleDie(),
+                this.openingSequenceActive ? AudioManager.preloadShout() : Promise.resolve(),
+            ]);
+        } catch (err) {
+            console.error('[GameManager] opening scene load failed', err);
+        }
+
+        if (!this.openingSequenceActive) return;
+        const monster = this.openingMonster || this.finalMonster;
+        if (monster && monster.node && monster.node.isValid) {
+            monster.playSpawnFade(MonsterSpawnConfig.fadeDuration, () => {
+                monster.activateOnGrid();
+                this.startOpeningSequence(monster);
+            });
+            return;
+        }
+        this.openingSequenceActive = false;
         this.assignCameraTarget();
     }
 
@@ -258,6 +366,7 @@ export class GameManager extends Component {
             },
             onBattle: (m: Monster) => this.doBattle(m),
             onChest: (chest: Chest) => this.openChest(chest),
+            onAttack: (sound: AttackAudioType) => AudioManager.playAttack(sound),
         };
     }
 
@@ -268,91 +377,338 @@ export class GameManager extends Component {
         const camera = canvas.getChildByName('Camera');
         if (!camera) return;
         const follow = camera.getComponent(CameraFollow) || camera.addComponent(CameraFollow);
-        follow.target = this.player ? this.player.node : null;
+        follow.target = !this.openingSequenceActive && this.player ? this.player.node : null;
+    }
+
+    /** 资源加载前直接把镜头放到开场怪物位置，避免先显示角色出生区域。 */
+    private alignCameraToOpeningTarget(): void {
+        if (!this.camera || !this.grid) return;
+        const worldTransform = this.node.getComponent(UITransform);
+        if (!worldTransform) return;
+
+        const follow = this.camera.getComponent(CameraFollow) || this.camera.addComponent(CameraFollow);
+        follow.target = null;
+        if (!this.openingSequenceActive) {
+            const playerLocal = this.grid.gridToWorld(Level1.playerSpawn.col, Level1.playerSpawn.row);
+            follow.snapToWorldPosition(worldTransform.convertToWorldSpaceAR(playerLocal));
+            return;
+        }
+        const data = Level1.monsters.find(item => item.name === OpeningSequenceConfig.targetMonsterName);
+        if (!data) {
+            this.openingSequenceActive = false;
+            const playerLocal = this.grid.gridToWorld(Level1.playerSpawn.col, Level1.playerSpawn.row);
+            follow.snapToWorldPosition(worldTransform.convertToWorldSpaceAR(playerLocal));
+            return;
+        }
+        const cell = this.grid.worldToGrid(new Vec3(data.x, data.y, data.z || 0));
+        const monsterLocal = cell ? this.grid.gridToWorld(cell.x, cell.y) : new Vec3(data.x, data.y, data.z || 0);
+        follow.snapToWorldPosition(worldTransform.convertToWorldSpaceAR(monsterLocal));
     }
 
     update(dt: number): void {
-        // 绿线跟随角色持续消失：每帧从角色当前位置重绘剩余路径
+        // PathLine 内部限频重画，绿线仍持续擦除角色走过的部分。
         if (this.player && this.player.isMoving() && this.pathLine) {
-            this.pathLine.updateRemaining(this.player.node.position);
+            this.pathLine.updateRemaining(this.player.node.position, dt);
         }
     }
 
-    private spawnMonsters(): void {
+    private async spawnMonsters(): Promise<void> {
         const container = this.node.getChildByName('Monsters');
         if (!container || !this.grid) return;
-        let highestMonster: Monster | null = null;
         for (const child of container.children) {
-            child.active = true; // 初始化时恢复所有怪物显示（被杀怪用 active 隐藏，不销毁）
-            if (!child.activeInHierarchy) continue;
+            child.active = false;
+        }
+
+        let highestMonster: Monster | null = null;
+        const spawnFadeTasks: Promise<void>[] = [];
+        this.finalMonster = null;
+
+        for (const data of Level1.monsters) {
+            let child: Node;
+            try {
+                child = await PrefabManager.createMonster(data.prefab);
+            } catch (err) {
+                console.error(`[GameManager] create monster prefab failed: ${data.prefab}`, err);
+                continue;
+            }
+
+            child.name = data.name;
+            child.setPosition(data.x, data.y, data.z || 0);
             const monster = child.getComponent(Monster) || child.addComponent(Monster);
-            monster.init(this.grid);
+            monster.prepareSpawnFade();
+            const label = child.getComponentInChildren(Label);
+            if (label) label.string = String(data.power);
+            container.addChild(child);
+
+            if (data.battleRadius !== undefined) monster.battleRadius = data.battleRadius;
+            monster.setAttackAnimation(MonsterProfiles[data.prefab].attackAnimation);
+            monster.init(this.grid, false);
+            this.moveMonsterPresentationToLayers(monster);
+            const isOpeningMonster = data.name === OpeningSequenceConfig.targetMonsterName;
+            if (isOpeningMonster) {
+                this.openingMonster = monster;
+                if (this.openingSequenceActive) {
+                    monster.node.active = false;
+                    monster.setPresentationActive(false);
+                }
+            }
+            this.monsters.push(monster);
+            this.updateMonsterViewportVisibilityFor(monster);
+            if (!isOpeningMonster || !this.openingSequenceActive) {
+                spawnFadeTasks.push(new Promise(resolve => {
+                    monster.playSpawnFade(MonsterSpawnConfig.fadeDuration, () => {
+                        monster.activateOnGrid();
+                        resolve();
+                    });
+                }));
+            }
             if (!highestMonster || monster.power > highestMonster.power) highestMonster = monster;
-            if (child.name === 'monster1') this.finalMonster = monster;
+            if (data.name === 'monster1') this.finalMonster = monster;
+            if (data.name === MonsterGuideConfig.targetMonsterName) this.startMonsterGuide(monster);
         }
         if (!this.finalMonster) this.finalMonster = highestMonster;
+        if (!this.openingMonster) this.openingMonster = highestMonster;
+        await Promise.all(spawnFadeTasks);
     }
 
-    /** 扫描场景里的宝箱并注册（战力读宝箱子 Label，不限角色战力） */
-    private spawnChests(): void {
-        if (!this.grid) return;
-        const chests = this.node.getComponentsInChildren(Chest);
-        for (const chest of chests) {
-            if (!chest.node.activeInHierarchy) continue;
-            chest.init(this.grid);
+    private startMonsterViewportCulling(): void {
+        if (!MonsterViewportCullingConfig.enabled) return;
+        this.updateMonsterViewportVisibility();
+        this.schedule(
+            this.updateMonsterViewportVisibility,
+            Math.max(0.05, MonsterViewportCullingConfig.checkInterval),
+        );
+    }
+
+    private updateMonsterViewportVisibility = (): void => {
+        for (const monster of this.monsters) {
+            this.updateMonsterViewportVisibilityFor(monster);
+        }
+    };
+
+    private updateMonsterViewportVisibilityFor(monster: Monster): void {
+        if (!this.camera || !monster || !monster.node || !monster.node.isValid) return;
+        const forceVisible = monster === this.activeBattleMonster
+            || monster === this.glowingMonster
+            || monster === this.finisherMonster
+            || (this.openingSequenceActive && monster === this.openingMonster);
+        if (forceVisible) {
+            monster.setViewportVisible(true);
+            return;
+        }
+
+        const screenPosition = this.camera.worldToScreen(monster.node.worldPosition);
+        const visibleSize = view.getVisibleSizeInPixel();
+        const padding = monster.isViewportVisible()
+            ? MonsterViewportCullingConfig.exitPadding
+            : MonsterViewportCullingConfig.enterPadding;
+        const visible = screenPosition.x >= -padding
+            && screenPosition.x <= visibleSize.width + padding
+            && screenPosition.y >= -padding
+            && screenPosition.y <= visibleSize.height + padding;
+        monster.setViewportVisible(visible);
+    }
+
+    private startOpeningSequence(monster: Monster): void {
+        if (!this.openingSequenceActive || this.openingIntroStarted) return;
+        this.openingIntroStarted = true;
+        GameManager.openingSequenceShownOnce = true;
+        if (this.camera) {
+            const follow = this.camera.getComponent(CameraFollow) || this.camera.addComponent(CameraFollow);
+            follow.target = null;
+            follow.snapToWorldPosition(monster.node.worldPosition);
+        }
+        AudioManager.playShout();
+        monster.playOnceThenIdle(OpeningSequenceConfig.monsterIntroAnimation, () => {
+            this.scheduleOnce(() => {
+                this.openingAnimationComplete = true;
+                this.tryMoveOpeningCameraToPlayer();
+            }, Math.max(0, OpeningSequenceConfig.cameraMoveDelay));
+        });
+    }
+
+    private tryMoveOpeningCameraToPlayer(): void {
+        if (!this.openingSequenceActive || !this.openingAnimationComplete || this.openingCameraMoving) return;
+        if (!this.camera || !this.player || !this.player.node.isValid) return;
+
+        this.openingCameraMoving = true;
+        const follow = this.camera.getComponent(CameraFollow) || this.camera.addComponent(CameraFollow);
+        follow.target = null;
+        follow.moveToWorldPosition(
+            this.player.node.worldPosition,
+            OpeningSequenceConfig.cameraMoveDuration,
+            () => {
+                if (!this.player || !this.player.node.isValid) return;
+                this.openingSequenceActive = false;
+                this.openingCameraMoving = false;
+                follow.target = this.player.node;
+                const guideMonster = this.pendingGuideMonster;
+                this.pendingGuideMonster = null;
+                if (guideMonster && guideMonster.node && guideMonster.node.isValid) {
+                    this.startMonsterGuide(guideMonster);
+                }
+            },
+        );
+    }
+
+    private setupMonsterRenderLayers(): void {
+        this.monsterColorLayer = this.node.getChildByName('MonstersColor');
+        this.monsterLabelLayer = this.node.getChildByName('MonstersLabel');
+        if (!this.monsterColorLayer || !this.monsterLabelLayer) {
+            console.warn('[GameManager] MonstersColor or MonstersLabel layer is missing');
+            return;
+        }
+
+        // 身体先画，所有底图连续绘制，最后连续绘制数字。
+        this.monsterColorLayer.setSiblingIndex(this.node.children.length - 1);
+        this.monsterLabelLayer.setSiblingIndex(this.node.children.length - 1);
+    }
+
+    private moveMonsterPresentationToLayers(monster: Monster): void {
+        if (!this.monsterColorLayer || !this.monsterLabelLayer) return;
+        if (!monster.movePresentationToLayers(this.monsterColorLayer, this.monsterLabelLayer)) {
+            console.warn(`[GameManager] split monster presentation failed: ${monster.node.name}`);
         }
     }
 
-    /** 开箱：+战力、宝箱消失、角色切�?role1 */
+    /** 启动时从 baoxiang bundle 加载初始宝箱。 */
+    private async spawnInitialChest(): Promise<void> {
+        const boxLayer = this.node.getChildByName('boxLayer');
+        const grid = this.grid;
+        if (!boxLayer || !grid) return;
+
+        // 场景中旧的预制体实例仅用于保留编辑器结构，运行时由 bundle 版本替换。
+        for (const child of boxLayer.children) {
+            child.active = false;
+        }
+
+        try {
+            const box = await PrefabManager.createBox();
+            box.name = 'box';
+            //box.setPosition(-507, -20, 0);
+            box.setPosition(-285, 85, 0);
+            boxLayer.addChild(box);
+
+            const chest = box.getComponent(Chest) || box.addComponent(Chest);
+            chest.init(grid);
+        } catch (err) {
+            console.error('[GameManager] load box prefab failed', err);
+        }
+    }
+
+    /** 在旧宝箱位置放力量套道具，拾取触发方式复用宝箱占格逻辑。 */
+    private async spawnPowerSuit(): Promise<void> {
+        const boxLayer = this.node.getChildByName('boxLayer');
+        const grid = this.grid;
+        if (!boxLayer || !grid) return;
+
+        try {
+            const node = await PrefabManager.createPowerSuit();
+            node.setPosition(-507, -40, 0);
+            node.setScale(0.3, 0.3, 1);
+            boxLayer.addChild(node);
+
+            const chest = node.getComponent(Chest) || node.getComponentInChildren(Chest);
+            if (!chest) {
+                console.error('[GameManager] power suit prefab missing Chest component');
+                return;
+            }
+            chest.init(grid);
+            this.powerSuitChest = chest;
+        } catch (err) {
+            console.error('[GameManager] load power suit prefab failed', err);
+        }
+    }
+
+    /** 拾取宝箱 / 力量套：共用宝箱占格触发，奖励逻辑按节点区分。 */
     private openChest(chest: Chest): void {
         if (!this.player) return;
         // 和打怪一样：开箱后绿线消失
         if (this.pathLine) this.pathLine.clear();
         // 不限战力，直接加
         this.player.power += chest.power;
-        this.player.refreshLabel();
+        this.player.setDisplayedPower(this.player.getDisplayedPower() + chest.power);
         this.updatePowerUI();
         // 宝箱消失
         if (this.grid) this.grid.removeChest(chest);
         if (chest.node) chest.node.active = false;
-        this.switchPlayerToRole1();
+        AudioManager.playLevelUp();
+        if (chest === this.powerSuitChest || chest.node.name === 'PowerSuit') {
+            this.powerSuitChest = null;
+            this.switchPlayerRole('role2');
+        } else {
+            this.switchPlayerRole('role1');
+        }
     }
 
-    /** 把当前角色替换成 role1：位�?战力保留，动画名一�?*/
-    private switchPlayerToRole1(): void {
-        if (!this.player || !this.role1Prefab || !this.grid) return;
+    /** 把当前角色替换成指定形态：位置、战力、朝向保留。 */
+    private switchPlayerRole(roleType: 'role1' | 'role2'): void {
+        if (!this.player || !this.grid) return;
         const container = this.node.getChildByName('Player');
         if (!container) return;
         const old = this.player;
         const pos = old.node.position.clone();
         const power = old.power;
+        const displayedPower = old.getDisplayedPower();
         const facingDir = old.getFacing();
         const cell = this.grid.worldToGrid(pos) || new Vec2(old.gridCol, old.gridRow);
         old.node.destroy();
 
-        const node = instantiate(this.role1Prefab);
+        let node: Node;
+        try {
+            node = roleType === 'role2' ? PrefabManager.createRole2() : PrefabManager.createRole1();
+        } catch (err) {
+            console.error(`[GameManager] create ${roleType} prefab failed`, err);
+            return;
+        }
         node.name = 'PlayerInstance';
         this.fitToTile(node, 50);
         const label = node.getComponentInChildren(Label);
-        if (label) label.string = String(power);
+        if (label) label.string = String(displayedPower);
         container.addChild(node);
-        this.playRole1NormalAnimation(node);
+        this.playRoleUpgradeEffect(node, PlayerRoleProfiles[roleType].upgradeEffectAnimation);
 
         const player = node.addComponent(Player);
-        player.init(power, cell.x, cell.y, this.grid);
+        player.init(power, cell.x, cell.y, this.grid, displayedPower);
         player.setInitialFacing(facingDir);
         this.bindPlayerEvents(player);
+        this.applyPlayerRoleProfile(player, roleType);
         this.player = player;
         this.assignCameraTarget();
+        this.tryMoveOpeningCameraToPlayer();
         this.updatePowerUI();
+        AudioManager.playCheer();
     }
 
-    private playRole1NormalAnimation(role1Node: Node): void {
-        const animNode = role1Node.getChildByName('Node');
-        if (!animNode) return;
-        animNode.active = true;
-        const anim = animNode.getComponent(Animation);
-        if (anim) anim.play();
+    private applyPlayerRoleProfile(player: Player, roleType: PlayerRoleType): void {
+        const profile = PlayerRoleProfiles[roleType];
+        this.playerRoleType = roleType;
+        player.setAttackProfile(
+            profile.attackAnimation,
+            profile.attackSound,
+            profile.attackSoundDelay,
+            profile.attackImpactDelay,
+        );
+        if (profile.introAnimation) player.playSkillOnce(profile.introAnimation);
+    }
+
+    private playRoleUpgradeEffect(roleNode: Node, animationName?: string): void {
+        if (!animationName) return;
+        const effectNode = roleNode.getChildByName('sxsj');
+        if (!effectNode) return;
+        const skeleton = effectNode.getComponent(sp.Skeleton)
+            || effectNode.getComponentInChildren(sp.Skeleton);
+        if (!skeleton) {
+            effectNode.active = false;
+            return;
+        }
+
+        effectNode.active = true;
+        skeleton.setCompleteListener(() => {
+            skeleton.setCompleteListener(() => {});
+            if (effectNode.isValid) effectNode.active = false;
+        });
+        skeleton.setAnimation(0, animationName, false);
     }
 
     private buildUI(): void {
@@ -360,6 +716,8 @@ export class GameManager extends Component {
         if (!canvas) return;
         this.uiLayer = canvas.getChildByName('UILayer');
         if (!this.uiLayer) return;
+        this.guideNode = this.uiLayer.getChildByName('yindao');
+        this.hideGuideNode();
 
         // 战斗结果提示
         const resultNode = this.uiLayer.getChildByName('BattleResult');
@@ -381,7 +739,9 @@ export class GameManager extends Component {
     // ---------------- 输入 ----------------
 
     private onTouchStart(event: EventTouch): void {
-        if (!this.grid || !this.player || this.player.dead || this.battling) return;
+        if (this.openingSequenceActive) return;
+        if (this.stopMonsterGuide()) return;
+        if (!this.grid || !this.player || this.player.dead || this.battling || this.player.isInteracting()) return;
         if (this.isTouchOnUI(event)) return;
 
         const cell = this.getTouchCell(event);
@@ -391,22 +751,25 @@ export class GameManager extends Component {
         }
 
         const clickedMonster = this.grid.getMonsterAt(cell.x, cell.y);
-        if (clickedMonster) this.showMonsterGlow(clickedMonster);
-        else this.hideMonsterGlow();
+        //if (clickedMonster) {this.showMonsterGlow(clickedMonster);}
+        if(clickedMonster){
+
+        }  else{ this.hideMonsterGlow()};
     }
 
     private onTouchEnd(event: EventTouch): void {
-        if (!this.grid || !this.player || this.player.dead || this.battling) {
-            this.hideMonsterGlow();
+        if (this.openingSequenceActive) return;
+        if (!this.grid || !this.player || this.player.dead || this.battling || this.player.isInteracting()) {
+            this.hideMonsterGlowLater();
             return;
         }
         if (this.isTouchOnUI(event)) {
-            this.hideMonsterGlow();
+            this.hideMonsterGlowLater();
             return;
         }
 
         const cell = this.getTouchCell(event);
-        this.hideMonsterGlow();
+        this.hideMonsterGlowLater();
         if (!cell) return;
 
         this.handleMoveTouch(cell);
@@ -438,8 +801,74 @@ export class GameManager extends Component {
         if (!result) return;
 
         const movePath = this.grid.buildMovePath(startCell, result.path, this.player.node.position.clone());
+        const monsterHit = this.grid.firstMonsterOnPath(movePath);
+        if (monsterHit) {
+            const roleProfile = PlayerRoleProfiles[this.playerRoleType];
+            const distanceOverride = monsterHit.monster === this.finalMonster
+                ? undefined
+                : roleProfile.normalMonsterBattleDistance;
+            const battlePath = this.grid.buildBattleApproachPath(
+                this.player.node.position,
+                monsterHit,
+                distanceOverride,
+            );
+            if (battlePath) {
+                const displayPath = battlePath.slice();
+                const suffix = movePath.slice(monsterHit.segmentIndex + 1);
+                for (const point of suffix) {
+                    const last = displayPath[displayPath.length - 1];
+                    if (!last || Vec3.distance(last, point) > 0.01) displayPath.push(point);
+                }
+                if (this.pathLine) this.pathLine.drawPath(displayPath, movePath[movePath.length - 1]);
+                this.player.moveTo(battlePath, monsterHit.monster);
+                return;
+            }
+        }
         if (this.pathLine) this.pathLine.drawPath(movePath, movePath[movePath.length - 1]);
         this.player.moveTo(movePath, result.blockMonster);
+    }
+
+    private startMonsterGuide(monster: Monster): void {
+        if (this.openingSequenceActive) {
+            this.pendingGuideMonster = monster;
+            return;
+        }
+        if (this.monsterGuideDismissed || this.monsterGuideActive) return;
+        this.monsterGuideActive = true;
+        const guideNode = this.getGuideNode();
+        if (guideNode) {
+            guideNode.active = true;
+            const skeleton = guideNode.getComponent(sp.Skeleton)
+                || guideNode.getComponentInChildren(sp.Skeleton);
+            if (skeleton) skeleton.setAnimation(0, MonsterGuideConfig.animationName, true);
+        }
+        this.showMonsterGlow(monster);
+    }
+
+    private stopMonsterGuide(): boolean {
+        if (this.monsterGuideDismissed && !this.monsterGuideActive) return false;
+        const wasActive = this.monsterGuideActive;
+        this.monsterGuideDismissed = true;
+        this.monsterGuideActive = false;
+        this.hideGuideNode();
+        if (wasActive) this.hideMonsterGlow();
+        return wasActive;
+    }
+
+    private getGuideNode(): Node | null {
+        if (this.guideNode && this.guideNode.isValid) return this.guideNode;
+        if (!this.uiLayer) this.buildUI();
+        this.guideNode = this.uiLayer ? this.uiLayer.getChildByName('yindao') : null;
+        return this.guideNode;
+    }
+
+    private hideGuideNode(): void {
+        const guideNode = this.guideNode;
+        if (!guideNode || !guideNode.isValid) return;
+        const skeleton = guideNode.getComponent(sp.Skeleton)
+            || guideNode.getComponentInChildren(sp.Skeleton);
+        if (skeleton) skeleton.clearTracks();
+        guideNode.active = false;
     }
 
     // ---------------- 战斗（需�?4/12/13/14�?----------------
@@ -448,50 +877,347 @@ export class GameManager extends Component {
         if (!this.player || this.battling) return;
         this.hideMonsterGlow();
         this.battling = true;
+        this.activeBattleMonster = monster;
+        monster.setViewportVisible(true);
         if (this.pathLine) this.pathLine.clear();
-        this.player.faceToWorldX(monster.node.position.x);
+        this.player.faceToWorldX(monster.node.worldPosition.x);
+        monster.faceToWorldX(this.player.node.worldPosition.x);
         const win = this.player.power > monster.power;
-        let diePlayed = false;
-        let orbsDone = false;
+        const rewardPower = monster.power;
+        let monsterHidden = false;
         const hideMonster = () => {
-            if (!(diePlayed && orbsDone)) return;
+            if (monsterHidden) return;
+            monsterHidden = true;
+            monster.setPresentationActive(false);
             if (monster.node) {
                 monster.node.active = false;
             }
+            if (this.activeBattleMonster === monster) this.activeBattleMonster = null;
             this.updatePowerUI();
+            if (monster === this.finalMonster) this.showVictoryUI();
         };
         if (win) {
-            this.player.playAttack(() => {
-                // 角色攻击播完：怪物立刻停攻击，播放死亡动画（角色胜时）
-                this.battling = false;
+            const isFinalMonster = monster === this.finalMonster;
+            let battleResolved = false;
+            const finishWin = () => {
+                if (battleResolved) return;
+                battleResolved = true;
+                // 攻击命中：怪物立刻停攻击并播放死亡动画。
                 if (this.grid) this.grid.removeMonster(monster);
-                monster.playDie(() => {
-                    diePlayed = true;
-                    hideMonster();
-                });
+                if (this.player) this.player.power += rewardPower;
+                if (isFinalMonster) AudioManager.playBossDie();
+                else AudioManager.playMonsterDie();
+                monster.playDie(hideMonster);
                 // 死亡动画兜底：异常（动画不播�?骨骼失效）时强制结束
-                this.scheduleOnce(() => {
-                    diePlayed = true;
-                    hideMonster();
-                }, 3);
-                this.startExpOrbDrop(monster, () => {
-                    orbsDone = true;
-                    hideMonster();
-                });
-                if (monster === this.finalMonster) this.showVictoryUI();
-            });
-            monster.playAttack();
+                this.scheduleOnce(hideMonster, 3);
+                this.startExpOrbDrop(monster, () => this.enqueuePlayerPowerGain(rewardPower));
+            };
+            if (isFinalMonster) {
+                this.playFinalMonsterAttackSequence(
+                    monster,
+                    rewardPower,
+                    finishWin,
+                    () => {},
+                );
+            } else {
+                this.player.playAttack(() => {
+                    finishWin();
+                    this.battling = false;
+                }, finishWin);
+                monster.playAttack();
+            }
         } else {
+            this.startPlayerPowerLossTick();
             this.player.playAttack();
             monster.playAttack();
             this.scheduleOnce(() => {
-                this.battling = false;
-                this.showBattleResult('失败', new Color(255, 90, 90, 255));
-                this.player!.playDie();
-                this.showDeathUI();
-            }, 0.5);
+                if (!this.player) return;
+                AudioManager.playRoleDie();
+                this.player.playDie(() => {
+                    this.battling = false;
+                    if (this.activeBattleMonster === monster) this.activeBattleMonster = null;
+                    this.showDeathUI();
+                });
+            }, 0.5);//多久开始播放角色死亡动画
         }
-        this.startPowerTick(monster, win);
+    }
+
+    /** 按配置连续攻击最终 Boss；每次命中都分段降低 Boss 显示数字。 */
+    private playFinalMonsterAttackSequence(
+        monster: Monster,
+        originalPower: number,
+        onFinalImpactResolved: () => void,
+        onComplete: () => void,
+    ): void {
+        const player = this.player;
+        const attackCount = Math.max(1, Math.floor(FinalBossBattleConfig.attackCount));
+        if (!player) {
+            monster.setLabelText('0');
+            onFinalImpactResolved();
+            onComplete();
+            return;
+        }
+
+        monster.playAttackLoop();
+        const bossAttackSoundDelay = Math.max(0, MonsterProfiles.monster1.firstAttackSoundDelay || 0);
+        if (bossAttackSoundDelay > 0) {
+            this.scheduleOnce(() => AudioManager.playBossAttack(), bossAttackSoundDelay);
+        } else {
+            AudioManager.playBossAttack();
+        }
+        let hitIndex = 0;
+        let displayedPower = originalPower;
+        if (this.finisherDeathTimer !== null) {
+            clearTimeout(this.finisherDeathTimer);
+            this.finisherDeathTimer = null;
+        }
+
+        const playNextAttack = () => {
+            hitIndex++;
+            let attackComplete = false;
+            let powerDropComplete = false;
+            let powerDropStarted = false;
+            let deathDelayComplete = hitIndex < attackCount;
+            let finalImpactResolved = hitIndex < attackCount;
+            let attackAdvanced = false;
+
+            const continueSequence = () => {
+                if (attackAdvanced || !attackComplete || !powerDropComplete) return;
+                if (hitIndex >= attackCount) {
+                    if (!finalImpactResolved) return;
+                    attackAdvanced = true;
+                    onComplete();
+                } else {
+                    attackAdvanced = true;
+                    this.fadeInFinalBossMask(playNextAttack);
+                }
+            };
+            const tryResolveFinalImpact = () => {
+                if (finalImpactResolved || !deathDelayComplete || !powerDropComplete) return;
+                finalImpactResolved = true;
+                onFinalImpactResolved();
+                continueSequence();
+            };
+            const onAttackSound = () => {
+                if (powerDropStarted) return;
+                powerDropStarted = true;
+                if (hitIndex >= attackCount) this.playFinalBossHitStop(player, monster);
+                const remainingHits = attackCount - hitIndex;
+                const targetPower = remainingHits <= 0
+                    ? 0
+                    : Math.ceil(originalPower * remainingHits / attackCount);
+                this.animateMonsterPowerDrop(monster, displayedPower, targetPower, () => {
+                    displayedPower = targetPower;
+                    powerDropComplete = true;
+                    if (hitIndex >= attackCount) tryResolveFinalImpact();
+                    continueSequence();
+                });
+            };
+
+            if (hitIndex >= attackCount) {
+                this.scheduleFinalBossSlowMotion(player, monster);
+                const heHaDelay = Math.max(0, FinalBossBattleConfig.finisherHeHaDelay);
+                if (heHaDelay > 0) this.scheduleOnce(() => AudioManager.playHeHa(), heHaDelay);
+                else AudioManager.playHeHa();
+                const deathDelay = Math.max(0, FinalBossBattleConfig.finisherDeathDelay);
+                if (deathDelay === 0) {
+                    deathDelayComplete = true;
+                } else {
+                    this.finisherDeathTimer = setTimeout(() => {
+                        this.finisherDeathTimer = null;
+                        deathDelayComplete = true;
+                        tryResolveFinalImpact();
+                    }, deathDelay * 1000);
+                }
+            }
+            const roleProfile = PlayerRoleProfiles[this.playerRoleType];
+            const attackAnimation = roleProfile.bossAttackAnimations?.[hitIndex - 1]
+                || roleProfile.attackAnimation;
+            const soundDelay = hitIndex >= attackCount
+                ? FinalBossBattleConfig.finisherAttackSoundDelay
+                : roleProfile.attackSoundDelay;
+            player.playAttackAnimation(attackAnimation, () => {
+                attackComplete = true;
+                continueSequence();
+            }, undefined, onAttackSound, soundDelay);
+        };
+
+        playNextAttack();
+    }
+
+    private fadeInFinalBossMask(onComplete: () => void): void {
+        const opacity = this.finalBossMaskNode?.getComponent(UIOpacity);
+        if (!opacity) {
+            onComplete();
+            return;
+        }
+        this.startFinalBossCameraZoom();
+        opacity.opacity = 0;
+        const duration = Math.max(0, FinalBossBattleConfig.maskFadeInDuration);
+        if (duration === 0) {
+            opacity.opacity = 255;
+            onComplete();
+            return;
+        }
+        tween(opacity)
+            .to(duration, { opacity: 255 })
+            .call(onComplete)
+            .start();
+    }
+
+    private startFinalBossCameraZoom(): void {
+        if (!this.camera) return;
+        if (this.finalBossCameraOrthoHeight === null) {
+            this.finalBossCameraOrthoHeight = this.camera.orthoHeight;
+        }
+        const targetHeight = this.finalBossCameraOrthoHeight
+            * Math.max(0.01, FinalBossBattleConfig.maskCameraZoomScale);
+        const duration = Math.max(0, FinalBossBattleConfig.maskCameraZoomDuration);
+        const follow = this.camera.getComponent(CameraFollow);
+        if (follow && this.finalBossCameraOffsetX === null) {
+            this.finalBossCameraOffsetX = follow.targetOffsetX;
+        }
+        const targetOffsetX = (this.finalBossCameraOffsetX || 0)
+            + FinalBossBattleConfig.maskCameraOffsetX;
+        if (duration === 0) {
+            this.camera.orthoHeight = targetHeight;
+            if (follow) follow.setTargetOffsetX(targetOffsetX, true);
+            return;
+        }
+        tween(this.camera)
+            .to(duration, { orthoHeight: targetHeight }, { easing: 'quadOut' })
+            .start();
+        if (follow) {
+            tween(follow)
+                .to(duration, { targetOffsetX }, { easing: 'quadOut' })
+                .start();
+        }
+    }
+
+    private restoreFinalBossCameraZoom(): void {
+        if (!this.camera) return;
+        if (this.finalBossCameraOrthoHeight !== null) {
+            this.camera.orthoHeight = this.finalBossCameraOrthoHeight;
+            this.finalBossCameraOrthoHeight = null;
+        }
+        const follow = this.camera.getComponent(CameraFollow);
+        if (follow && this.finalBossCameraOffsetX !== null) {
+            follow.setTargetOffsetX(this.finalBossCameraOffsetX, true);
+            this.finalBossCameraOffsetX = null;
+        }
+    }
+
+    private scheduleFinalBossSlowMotion(player: Player, monster: Monster): void {
+        this.clearFinalBossCinematicTimers();
+        this.finisherPlayer = player;
+        this.finisherMonster = monster;
+        const delay = Math.max(0, FinalBossBattleConfig.finisherSlowStartDelay);
+        if (delay === 0) {
+            this.startFinalBossSlowMotion(player, monster);
+            return;
+        }
+        this.finisherSlowStartTimer = setTimeout(() => {
+            this.finisherSlowStartTimer = null;
+            this.startFinalBossSlowMotion(player, monster);
+        }, delay * 1000);
+    }
+
+    private startFinalBossSlowMotion(player: Player, monster: Monster): void {
+        this.clearFinalBossCinematicTimers();
+        this.finisherPlayer = player;
+        this.finisherMonster = monster;
+        const scheduler = director.getScheduler();
+        const scale = Math.max(0.01, FinalBossBattleConfig.finisherSlowScale);
+        scheduler.setTimeScale(scale);
+        player.setAnimationTimeScale(scale);
+        monster.setAnimationTimeScale(scale);
+        this.finisherSlowTimer = setTimeout(() => {
+            this.finisherSlowTimer = null;
+            scheduler.setTimeScale(1);
+            this.restoreFinalBossAnimationTimeScale();
+        }, Math.max(0, FinalBossBattleConfig.finisherSlowDuration) * 1000);
+    }
+
+    private playFinalBossHitStop(player: Player, monster: Monster): void {
+        if (this.finisherSlowTimer !== null) {
+            clearTimeout(this.finisherSlowTimer);
+            this.finisherSlowTimer = null;
+        }
+        if (this.finisherHitStopTimer !== null) {
+            clearTimeout(this.finisherHitStopTimer);
+            this.finisherHitStopTimer = null;
+        }
+        this.finisherPlayer = player;
+        this.finisherMonster = monster;
+        const scheduler = director.getScheduler();
+        scheduler.setTimeScale(0);
+        player.setAnimationTimeScale(0);
+        monster.setAnimationTimeScale(0);
+        this.finisherHitStopTimer = setTimeout(() => {
+            this.finisherHitStopTimer = null;
+            scheduler.setTimeScale(1);
+            this.restoreFinalBossAnimationTimeScale();
+        }, Math.max(0, FinalBossBattleConfig.finisherHitStopDuration) * 1000);
+    }
+
+    private clearFinalBossCinematicTimers(): void {
+        if (this.finisherSlowStartTimer !== null) {
+            clearTimeout(this.finisherSlowStartTimer);
+            this.finisherSlowStartTimer = null;
+        }
+        if (this.finisherSlowTimer !== null) {
+            clearTimeout(this.finisherSlowTimer);
+            this.finisherSlowTimer = null;
+        }
+        if (this.finisherHitStopTimer !== null) {
+            clearTimeout(this.finisherHitStopTimer);
+            this.finisherHitStopTimer = null;
+        }
+    }
+
+    private restoreGameTimeScale(): void {
+        this.clearFinalBossCinematicTimers();
+        if (this.finisherDeathTimer !== null) {
+            clearTimeout(this.finisherDeathTimer);
+            this.finisherDeathTimer = null;
+        }
+        director.getScheduler().setTimeScale(1);
+        this.restoreFinalBossAnimationTimeScale();
+    }
+
+    private restoreFinalBossAnimationTimeScale(): void {
+        if (this.finisherPlayer && this.finisherPlayer.node && this.finisherPlayer.node.isValid) {
+            this.finisherPlayer.setAnimationTimeScale(1);
+        }
+        if (this.finisherMonster && this.finisherMonster.node && this.finisherMonster.node.isValid) {
+            this.finisherMonster.setAnimationTimeScale(1);
+        }
+    }
+
+    private animateMonsterPowerDrop(
+        monster: Monster,
+        startPower: number,
+        targetPower: number,
+        onComplete: () => void,
+    ): void {
+        const steps = Math.max(1, Math.floor(FinalBossBattleConfig.powerDropSteps));
+        const interval = Math.max(0, FinalBossBattleConfig.powerDropStepInterval);
+        if (steps === 1 || interval === 0) {
+            monster.setLabelText(String(targetPower));
+            onComplete();
+            return;
+        }
+
+        let step = 0;
+        const tick = () => {
+            step++;
+            const power = step >= steps
+                ? targetPower
+                : Math.round(startPower + (targetPower - startPower) * step / steps);
+            monster.setLabelText(String(power));
+            if (step >= steps) onComplete();
+        };
+        this.schedule(tick, interval, steps - 1);
     }
 
     private showMonsterGlow(monster: Monster): void {
@@ -544,6 +1270,13 @@ export class GameManager extends Component {
         this.glowingMonsterScale = null;
     }
 
+    private hideMonsterGlowLater(delay = 0.3): void {
+        if (!this.glowingMonster || !this.glowingMonster.node || !this.glowingMonster.node.isValid) return;
+        if (this.hideGlowTask) this.unschedule(this.hideGlowTask);
+        this.hideGlowTask = () => this.hideMonsterGlow();
+        this.scheduleOnce(this.hideGlowTask, delay);
+    }
+
     private detachMonsterLabelForGlow(monster: Monster, fallbackParent: Node): void {
         const labelRoot = monster.getPowerLabelGlowRoot();
         if (!labelRoot || !labelRoot.isValid || labelRoot === monster.node) return;
@@ -583,41 +1316,65 @@ export class GameManager extends Component {
         this.glowingLabelActive = true;
     }
 
-    /**
-     * 头顶数字分段跳动�? 段、每�?0.3s�?     * 赢家按输家战力分 3 段加上去，输家分 3 段减�?0；输的一方在攻击播完后播�?die�?     * 例：角色 10 vs 怪物 9，角色胜 -> 角色 13/16/19，怪物 6/3/0�?     */
-    private startPowerTick(monster: Monster, win: boolean): void {
+    /** 经验球全部吸收后，把已生效的逻辑战力滚动到显示数字。 */
+    private enqueuePlayerPowerGain(gain: number): void {
+        if (gain <= 0) return;
+        this.pendingPowerGain += gain;
+        if (this.powerGainAnimating) return;
+        this.playNextPowerGain();
+    }
+
+    private playNextPowerGain(): void {
         const player = this.player;
-        if (!player) return;
-        const loserPower = win ? monster.power : player.power;
-        const startPlayerPower = player.power;
-        const startMonsterPower = monster.power;
+        if (!player || this.pendingPowerGain <= 0) {
+            this.powerGainAnimating = false;
+            return;
+        }
+        const gain = this.pendingPowerGain;
+        this.pendingPowerGain = 0;
+        this.powerGainAnimating = true;
+        const startPlayerPower = player.getDisplayedPower();
+        const targetPower = startPlayerPower + gain;
+        const steps = 10;
         let step = 0;
 
         this.onPowerTick = () => {
             step++;
-            const gain = Math.round(loserPower * step / 3);
-            if (win) {
-                // 角色加上去、怪物减到 0
-                player.power = startPlayerPower + gain;
-                if (monster.node && monster.node.isValid) monster.setLabelText(String(Math.max(0, startMonsterPower - gain)));
-            } else {
-                player.power = Math.max(0, startPlayerPower - gain);
-                monster.power = startMonsterPower + gain;
-                if (monster.node && monster.node.isValid) monster.setLabelText(String(monster.power));
+            const currentPlayer = this.player;
+            if (!currentPlayer) return;
+            const displayedPower = step >= steps
+                ? targetPower
+                : startPlayerPower + Math.round(gain * step / steps);
+            currentPlayer.setDisplayedPower(displayedPower);
+            this.updatePowerUI();
+            if (step >= steps) {
+                this.unschedule(this.onPowerTick!);
+                this.onPowerTick = null;
+                this.powerGainAnimating = false;
+                this.playNextPowerGain();
             }
-            player.refreshLabel();
+        };
+        this.schedule(this.onPowerTick, 0.03, steps - 1);
+    }
+
+    /** 失败流程保留角色三段下降，但怪物数字始终保持原值。 */
+    private startPlayerPowerLossTick(): void {
+        const player = this.player;
+        if (!player) return;
+        const startPlayerPower = player.power;
+        let step = 0;
+
+        this.onPowerTick = () => {
+            step++;
+            player.power = Math.max(0, startPlayerPower - Math.round(startPlayerPower * step / 3));
+            player.setDisplayedPower(player.power);
             this.updatePowerUI();
             if (step >= 3) {
                 this.unschedule(this.onPowerTick!);
-                if (win) {
-                    // 结束时补成精确值，避免分段取整误差
-                    player.power = startPlayerPower + loserPower;
-                    player.refreshLabel();
-                    this.updatePowerUI();
-                }
+                this.onPowerTick = null;
             }
         };
-        this.schedule(this.onPowerTick, 0.2, 2);//就用0.1
+        this.schedule(this.onPowerTick, 0.2, 2);
     }
 
     /** 刷新角色头顶数字和左上角战力 HUD */
@@ -626,7 +1383,7 @@ export class GameManager extends Component {
         if (this.uiLayer) {
             const hud = this.uiLayer.getChildByName('PowerHUD');
             const label = hud && hud.getComponentInChildren(Label);
-            if (label) label.string = '战力：' + this.player.power;
+            if (label) label.string = '战力：' + this.player.getDisplayedPower();
         }
     }
 
@@ -644,13 +1401,20 @@ export class GameManager extends Component {
 
     /** 角色死亡：显�?再来一�?按钮（复用原来的重载场景逻辑�?*/
     private showDeathUI(): void {
+        this.lockResultState();
+
         if (!this.uiLayer || this.failPanel) return;
-        if (!this.failPrefab) {
+        AudioManager.stopBgm();
+        AudioManager.playFail();
+        let panel: Node;
+        try {
+            panel = PrefabManager.createFail();
+        } catch (err) {
+            console.error('[GameManager] create fail prefab failed', err);
             this.showRestartButton('再来一次', new Color(70, 140, 255, 255));
             return;
         }
 
-        const panel = instantiate(this.failPrefab);
         panel.name = 'FailPanel';
         this.uiLayer.addChild(panel);
         const failPanel = panel.addComponent(FailPanel);
@@ -660,7 +1424,41 @@ export class GameManager extends Component {
 
     /** 打败最终怪物：显�?游戏胜利"按钮（暂时复用再来一次逻辑�?*/
     private showVictoryUI(): void {
-        this.showRestartButton('游戏胜利', new Color(70, 180, 110, 255));
+        this.lockResultState();
+        if (!this.uiLayer || this.victoryPanel) return;
+        AudioManager.stopBgm();
+        AudioManager.playVictory();
+        let panel: Node;
+        try {
+            panel = PrefabManager.createVictory();
+        } catch (err) {
+            console.error('[GameManager] create victory prefab failed', err);
+            this.showRestartButton('游戏胜利', new Color(70, 180, 110, 255));
+            return;
+        }
+
+        panel.name = 'VictoryPanel';
+        this.uiLayer.addChild(panel);
+        const victoryPanel = panel.addComponent(VictoryPanel);
+        victoryPanel.play(this.camera ? this.camera.node : null);
+        this.victoryPanel = panel;
+    }
+
+    /** 结果界面出现后统一冻结操作；胜利流程不播放角色死亡动画。 */
+    private lockResultState(): void {
+        this.activeBattleMonster = null;
+        this.restoreFinalBossCameraZoom();
+        const maskOpacity = this.finalBossMaskNode?.getComponent(UIOpacity);
+        if (maskOpacity) maskOpacity.opacity = 0;
+        this.stopMonsterGuide();
+        this.hideMonsterGlow();
+        if (this.pathLine) this.pathLine.clear();
+        if (this.player) {
+            this.player.stop();
+            this.player.dead = true;
+        }
+        const follow = this.camera ? this.camera.getComponent(CameraFollow) : null;
+        if (follow) follow.enabled = false;
     }
 
     private showRestartButton(text: string, color: Color): void {

@@ -1,0 +1,174 @@
+
+10009_attack_3.png
+size: 512,2048
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+at_baozha_0001
+  rotate: false
+  xy: 0, 976
+  size: 130, 120
+  orig: 130, 120
+  offset: 0, 0
+  index: -1
+at_baozha_0003
+  rotate: false
+  xy: 132, 976
+  size: 130, 120
+  orig: 130, 120
+  offset: 0, 0
+  index: -1
+at_baozha_0005
+  rotate: false
+  xy: 0, 854
+  size: 130, 120
+  orig: 130, 120
+  offset: 0, 0
+  index: -1
+at_baozha_0007
+  rotate: false
+  xy: 132, 854
+  size: 130, 120
+  orig: 130, 120
+  offset: 0, 0
+  index: -1
+at_baozha_0009
+  rotate: false
+  xy: 0, 732
+  size: 130, 120
+  orig: 130, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00000
+  rotate: false
+  xy: 132, 732
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00001
+  rotate: false
+  xy: 0, 610
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00002
+  rotate: false
+  xy: 122, 610
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00003
+  rotate: false
+  xy: 0, 488
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00004
+  rotate: false
+  xy: 122, 488
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00005
+  rotate: false
+  xy: 0, 366
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00006
+  rotate: false
+  xy: 122, 366
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00007
+  rotate: false
+  xy: 0, 244
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00008
+  rotate: false
+  xy: 122, 244
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00009
+  rotate: false
+  xy: 0, 122
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00010
+  rotate: false
+  xy: 122, 122
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00011
+  rotate: false
+  xy: 0, 0
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+daoguanga_00012
+  rotate: false
+  xy: 122, 0
+  size: 120, 120
+  orig: 120, 120
+  offset: 0, 0
+  index: -1
+jljsydga0
+  rotate: false
+  xy: 0, 1678
+  size: 307, 114
+  orig: 307, 114
+  offset: 0, 0
+  index: -1
+jljsydga1
+  rotate: false
+  xy: 0, 1562
+  size: 307, 114
+  orig: 307, 114
+  offset: 0, 0
+  index: -1
+jljsydga2
+  rotate: false
+  xy: 0, 1446
+  size: 307, 114
+  orig: 307, 114
+  offset: 0, 0
+  index: -1
+jljsydga3
+  rotate: false
+  xy: 0, 1330
+  size: 307, 114
+  orig: 307, 114
+  offset: 0, 0
+  index: -1
+jljsydga4
+  rotate: false
+  xy: 0, 1214
+  size: 307, 114
+  orig: 307, 114
+  offset: 0, 0
+  index: -1
+jljsydga5
+  rotate: false
+  xy: 0, 1098
+  size: 307, 114
+  orig: 307, 114
+  offset: 0, 0
+  index: -1

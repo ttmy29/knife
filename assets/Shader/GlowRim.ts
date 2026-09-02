@@ -67,7 +67,11 @@ class GlowRim extends Component {
     set brightness(val) { this._brightness = val; this.material?.setProperty('brightness', val); }
     centerScale: number = 1;
     material: Material = null;
+    private baseScaleX = 1;
+    private baseScaleY = 1;
+    private baseScaleZ = 1;
     protected onEnable(): void {
+        this.recordBaseScale();
         if (!this.checkMaterial()) return;
         this.material.setProperty('enable', 1);
         this.material.setProperty('outerActive', this._outerActive ? 1 : 0);
@@ -87,8 +91,21 @@ class GlowRim extends Component {
             this.material.setProperty('enable', 0);
             this.material.setProperty('centerScale', 1);
         }
-        if (!this.node.getComponent('Snapshot')) this.node.setScale(1, 1, 1);
+        if (!this.node.getComponent('Snapshot')) this.node.setScale(this.baseScaleX, this.baseScaleY, this.baseScaleZ);
         this.node.off(NodeEventType.SIZE_CHANGED, this.updateContentSize, this);
+    }
+    private recordBaseScale(): void {
+        const snapshot = this.node.getComponent('Snapshot');
+        const scale = this.node.scale;
+        if (snapshot || this.centerScale === 1) {
+            this.baseScaleX = scale.x;
+            this.baseScaleY = scale.y;
+            this.baseScaleZ = scale.z;
+            return;
+        }
+        this.baseScaleX = scale.x * this.centerScale;
+        this.baseScaleY = scale.y * this.centerScale;
+        this.baseScaleZ = scale.z;
     }
     //检测渲染组件的材质，是否与本脚本匹配
     checkMaterial(): boolean {
@@ -110,7 +127,7 @@ class GlowRim extends Component {
         if (!this.node.getComponent('Snapshot')) {
             let shortSide = Math.min(ut.width, ut.height) * 0.5;
             this.centerScale = shortSide / (shortSide + this._outerWidth);
-            this.node.setScale(1 / this.centerScale, 1 / this.centerScale, 1);
+            this.node.setScale(this.baseScaleX / this.centerScale, this.baseScaleY / this.centerScale, this.baseScaleZ);
             this.material.setProperty('centerScale', this.centerScale);
         } else {
             this.centerScale = 1;

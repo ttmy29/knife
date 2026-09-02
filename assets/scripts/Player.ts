@@ -2,6 +2,7 @@ import { _decorator, Component, Label, Node, UITransform, Vec2, Vec3, tween, sp 
 import { Grid } from './Grid';
 import { Monster } from './Monster';
 import { Chest } from './Chest';
+import { AttackAudioType } from './config/ResourceConfig';
 
 const { ccclass, property } = _decorator;
 
@@ -12,6 +13,8 @@ export interface PlayerEvents {
     onBattle: (monster: Monster) => void;
     /** 攻击动画播完后开宝箱 */
     onChest: (chest: Chest) => void;
+    /** 角色攻击动画开始时播放音效 */
+    onAttack?: (sound: AttackAudioType) => void;
 }
 
 /** 角色：沿 A* 路径逐格移动；进怪前停下并回调战斗 */
@@ -20,8 +23,13 @@ export class Player extends Component {
     @property
     public power = 4407;
 
+    private displayedPower = 4407;
+
     @property
-    public moveSpeed = 280;
+    public moveSpeed = 220;
+
+    @property
+    public attackStopPadding = 0;//之前20
 
     public gridCol = 0;
     public gridRow = 0;
@@ -31,6 +39,7 @@ export class Player extends Component {
     private waypoints: Vec3[] = [];
     private pathIndex = 0;
     private moving = false;
+    private interacting = false;
     private pendingMonster: Monster | null = null;
     private baseScaleX = 1;
     private baseScaleY = 1;
@@ -38,7 +47,14 @@ export class Player extends Component {
     private facing = 1; // 1 朝右，-1 朝左
     private powerLabel: Label | null = null;
     private skeletons: sp.Skeleton[] = [];
+    private readonly attackEffects = new Map<number, sp.Skeleton>();
+    private activeAttackEffect: sp.Skeleton | null = null;
+    private animationTimeScale = 1;
     private animName = 'idle';
+    private attackAnimation = 'phyattack1';
+    private attackSound: AttackAudioType = 'attack1';
+    private attackSoundDelay = 0.2;
+    private attackImpactDelay = 0.6;
     /** 经验球缩放脉冲乘数（不影响朝向） */
     private pulseScale = 1;
     private spineNode: Node | null = null;
@@ -59,19 +75,23 @@ export class Player extends Component {
     }
 
     faceToWorldX(worldX: number): void {
-        if (worldX < this.node.position.x) this.setFacing(-1);
-        else if (worldX > this.node.position.x) this.setFacing(1);
+        const selfWorldX = this.node.worldPosition.x;
+        if (worldX < selfWorldX) this.setFacing(-1);
+        else if (worldX > selfWorldX) this.setFacing(1);
     }
 
-    init(power: number, col: number, row: number, grid: Grid): void {
+    init(power: number, col: number, row: number, grid: Grid, displayedPower?: number): void {
         // Label 是数值入口：预制体里 Label 文本就是初始战力，颜色/字号直接在编辑器改
         const label = this.node.getComponentInChildren(Label);
         if (label) {
             this.powerLabel = label;
-            const parsed = parseInt(label.string, 10);
-            if (!isNaN(parsed) && parsed > 0) power = parsed;
+            if (displayedPower === undefined) {
+                const parsed = parseInt(label.string, 10);
+                if (!isNaN(parsed) && parsed > 0) power = parsed;
+            }
         }
         this.power = power;
+        this.displayedPower = displayedPower === undefined ? power : displayedPower;
         this.gridCol = col;
         this.gridRow = row;
         this.grid = grid;
@@ -80,9 +100,10 @@ export class Player extends Component {
         this.baseScaleY = this.node.scale.y;
         this.baseScaleZ = this.node.scale.z;
         this.facing = this.node.scale.x < 0 ? -1 : 1;
-        // spine 下的每个子节点各挂了一个 Skeleton，全部拿下来一起播
+        // 角色组合骨骼只从 spine 收集；Effects 有独立动画，不能跟着播放 idle/run。
         this.spineNode = this.node.getChildByName('spine');
-        this.skeletons = this.node.getComponentsInChildren(sp.Skeleton);
+        this.skeletons = this.spineNode ? this.spineNode.getComponentsInChildren(sp.Skeleton) : [];
+        this.setupAttackEffects();
         this.setupExpWhiteGlow();
         this.dead = false;
         this.applyFacing();
@@ -93,10 +114,37 @@ export class Player extends Component {
 
     /** 战斗后战力变化时同步头顶 Label */
     refreshLabel(): void {
-        if (this.powerLabel) this.powerLabel.string = String(this.power);
+        if (this.powerLabel) this.powerLabel.string = String(this.displayedPower);
+    }
+
+    getDisplayedPower(): number {
+        return this.displayedPower;
+    }
+
+    setDisplayedPower(power: number): void {
+        this.displayedPower = Math.max(0, Math.round(power));
+        this.refreshLabel();
+    }
+
+    setAttackProfile(animation: string, sound: AttackAudioType, soundDelay: number, impactDelay: number): void {
+        this.attackAnimation = animation;
+        this.attackSound = sound;
+        this.attackSoundDelay = Math.max(0, soundDelay);
+        this.attackImpactDelay = Math.max(0, impactDelay);
+    }
+
+    setAnimationTimeScale(scale: number): void {
+        this.animationTimeScale = Math.max(0, scale);
+        for (const skeleton of this.skeletons) {
+            if (skeleton && skeleton.isValid) skeleton.timeScale = this.animationTimeScale;
+        }
+        for (const effect of this.attackEffects.values()) {
+            if (effect && effect.isValid) effect.timeScale = this.animationTimeScale;
+        }
     }
 
     moveTo(waypoints: Vec3[], blockMonster: Monster | null): void {
+        if (this.interacting) return;
         this.waypoints = waypoints;
         this.pathIndex = 0;
         this.pendingMonster = blockMonster;
@@ -110,6 +158,10 @@ export class Player extends Component {
 
     isMoving(): boolean {
         return this.moving;
+    }
+
+    isInteracting(): boolean {
+        return this.interacting;
     }
 
     /** 停止当前移动 */
@@ -137,22 +189,98 @@ export class Player extends Component {
         this.playAnim('idle', true);
     }
 
+    /** 形态切换入场动画：播放一次后回到 idle。 */
+    playSkillOnce(name = 'skill1'): void {
+        this.animName = '';
+        this.playAnim(name, false);
+        this.onceAnimComplete(() => {
+            if (this.dead) return;
+            if (this.moving) this.playRun();
+            else this.playIdle();
+        });
+    }
+
     playRun(): void {
         this.playAnim('run', true);
     }
 
-    /** 攻击动画播完回调（自动回到 idle 后触发） */
-    playAttack(onComplete?: () => void): void {
-        this.playAnim('phyattack1', false);
+    /** 音效、命中与动画结束分别回调，供不同战斗表现选择对应时机。 */
+    playAttack(onComplete?: () => void, onImpact?: () => void, onSound?: () => void): void {
+        this.playAttackAnimation(this.attackAnimation, onComplete, onImpact, onSound);
+    }
+
+    /** 单次覆盖攻击动画，不改变普通攻击配置。 */
+    playAttackAnimation(
+        animation: string,
+        onComplete?: () => void,
+        onImpact?: () => void,
+        onSound?: () => void,
+        soundDelay: number = this.attackSoundDelay,
+    ): void {
+        this.playAnim(animation, false);
+        this.playAttackEffect(animation);
+        const playAttackSound = () => {
+            if (this.events && this.events.onAttack) this.events.onAttack(this.attackSound);
+            if (onSound) onSound();
+        };
+        if (soundDelay > 0) this.scheduleOnce(playAttackSound, soundDelay);
+        else playAttackSound();
+        let impacted = false;
+        const triggerImpact = () => {
+            if (impacted) return;
+            impacted = true;
+            if (onImpact) onImpact();
+        };
+        if (onImpact) this.scheduleOnce(triggerImpact, this.attackImpactDelay);
         this.onceAnimComplete(() => {
+            if (onImpact) {
+                this.unschedule(triggerImpact);
+                triggerImpact();
+            }
             if (!this.dead) this.playIdle();
             if (onComplete) onComplete();
         });
     }
 
-    playDie(): void {
+    private setupAttackEffects(): void {
+        this.attackEffects.clear();
+        const effectsNode = this.node.getChildByName('Effects');
+        if (!effectsNode) return;
+
+        for (const child of effectsNode.children) {
+            const match = child.name.match(/_attack_(\d+)$/);
+            const skeleton = child.getComponent(sp.Skeleton);
+            if (!match || !skeleton) continue;
+            this.attackEffects.set(Number(match[1]), skeleton);
+            child.active = false;
+        }
+    }
+
+    /** 特效与角色攻击同时启动，资源内部时间轴负责在挥刀帧显示刀光。 */
+    private playAttackEffect(animation = this.attackAnimation): void {
+        const match = animation.match(/phyattack(\d+)$/);
+        if (!match) return;
+        const effect = this.attackEffects.get(Number(match[1]));
+        if (!effect || !effect.isValid || !effect.node.isValid) return;
+
+        if (this.activeAttackEffect && this.activeAttackEffect !== effect && this.activeAttackEffect.node.isValid) {
+            this.activeAttackEffect.node.active = false;
+        }
+        this.activeAttackEffect = effect;
+        effect.timeScale = this.animationTimeScale;
+        effect.node.active = true;
+        effect.setCompleteListener(() => {
+            effect.setCompleteListener(() => {});
+            if (effect.node && effect.node.isValid) effect.node.active = false;
+            if (this.activeAttackEffect === effect) this.activeAttackEffect = null;
+        });
+        effect.setAnimation(0, 'animation', false);
+    }
+
+    playDie(onComplete?: () => void): void {
         this.dead = true;
         this.playAnim('die', false);
+        if (onComplete) this.onceAnimComplete(onComplete);
     }
 
     /** 收到经验球反馈：白光短闪 + 0.1s 缩放变 1.2，再 0.1s 恢复 */
@@ -177,6 +305,7 @@ export class Player extends Component {
         if (!this.expWhiteGlow || !this.spineNode) return;
         const snapshot = this.expWhiteGlow.getComponent('Snapshot') as any;
         if (snapshot) {
+            snapshot.snapshotLayer = 26;
             snapshot.target = this.spineNode;
         }
     }
@@ -287,10 +416,10 @@ export class Player extends Component {
         const target = this.waypoints[this.pathIndex];
         const pos = this.node.position;
 
-        // 当前线段上第一个进入的怪物 / 宝箱占格：走到边缘停下处理
-        const occ = this.grid.firstOccupantOnSegment(pos, target);
+        // 怪物使用脚下战斗圆的进入点；宝箱仍使用占格边缘。
+        const occ = this.grid.firstOccupantOnSegment(pos, target, this.pendingMonster);
         if (occ) {
-            const entry = this.monsterEntryPoint(occ.cell, target);
+            const entry = occ.entry || this.monsterEntryPoint(occ.cell, target);
             const ex = entry.x - pos.x;
             const ey = entry.y - pos.y;
             const edist = Math.sqrt(ex * ex + ey * ey);
@@ -307,7 +436,9 @@ export class Player extends Component {
                     if (this.events && this.events.onBattle) this.events.onBattle(occ.monster);
                 } else if (occ.chest) {
                     // 宝箱：攻击动画播完才开箱
+                    this.interacting = true;
                     this.playAttack(() => {
+                        this.interacting = false;
                         if (this.events && this.events.onChest && occ.chest) this.events.onChest(occ.chest);
                     });
                 }
@@ -348,10 +479,10 @@ export class Player extends Component {
      * 当前线段（pos -> toward）进入怪物格的交点：停在怪物格边缘，不进入怪物格。
      * toward 是当前目标点（可能在怪物身后），用真实行进方向算交点。
      */
-    private monsterEntryPoint(cell: Vec2, toward: Vec3): Vec3 {
+    private monsterEntryPoint(cell: Vec2, toward: Vec3, padding = 0): Vec3 {
         const pos = this.node.position;
         const c = this.grid!.gridToWorld(cell.x, cell.y);
-        const half = this.grid!.tileSize / 2;
+        const half = this.grid!.tileSize / 2 + padding;
         const dx = toward.x - pos.x;
         const dy = toward.y - pos.y;
         let tx = Infinity;

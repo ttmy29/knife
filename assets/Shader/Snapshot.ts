@@ -34,6 +34,14 @@ class Snapshot extends Component {
     @property({ tooltip: 'Keep target visible to its original camera while also rendering it to the snapshot camera.' })
     preserveTargetLayer: boolean = false;
     static layer: number = 26;
+    @property
+    _snapshotLayer: number = Snapshot.layer;
+    @property({ displayName: '快照层' })
+    get snapshotLayer() { return this._snapshotLayer; }
+    set snapshotLayer(val) {
+        this._snapshotLayer = clamp(val | 0, 0, 31);
+        this.applySnapshotLayer();
+    }
     layer: number = 0;
     camera: CameraComponent = null;
     sprite: Sprite = null;
@@ -53,7 +61,7 @@ class Snapshot extends Component {
             cameraNode.addComponent(CameraComponent);
             cameraNode._objFlags |= CCObject.Flags.HideInHierarchy;
         }
-        this.layer = 1 << Snapshot.layer;
+        this.layer = 1 << this._snapshotLayer;
         let camera = this.camera = cameraNode.getComponent(CameraComponent);
         camera.visibility = this.layer;
         camera.priority = this.priority;
@@ -104,6 +112,12 @@ class Snapshot extends Component {
         const targets = this.target ? [this.target] : this.node.children.filter(child => child !== this.camera?.node);
         for (const target of targets) this.setLayerRecursiveWithRecord(target, this.layer);
     }
+    private applySnapshotLayer(): void {
+        this.restoreLayers();
+        this.layer = 1 << this._snapshotLayer;
+        if (this.camera) this.camera.visibility = this.layer;
+        if (this.enabledInHierarchy) this.captureTargets();
+    }
     private setLayerRecursiveWithRecord(node: Node, layer: number): void {
         this.layerRecords.push({ node, layer: node.layer });
         node.layer = this.preserveTargetLayer ? (node.layer | layer) : layer;
@@ -121,6 +135,7 @@ declare global {
         class Snapshot extends Component {
             priority: number;
             isRefresh: boolean;
+            snapshotLayer: number;
         }
     }
 }

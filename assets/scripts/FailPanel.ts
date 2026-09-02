@@ -37,20 +37,22 @@ export class FailPanel extends Component {
             this.playRotationLoop(this.getNode('axe2'), 0.5, -10);
         }, 1.3);
         this.playButtonPunch(this.node.getChildByName('Button'), 0);
-        this.playButtonPunch(this.node.getChildByName('Button-001'), 0.08);
+       // this.playButtonPunch(this.node.getChildByName('Button-001'), 0.08);
     }
 
     private getNode(name: string): Node | null {
-        return this.node.getChildByName(name);
+        return this.node.getChildByName("all").getChildByName(name);
     }
 
     private playButtonPunch(button: Node | null, delay: number): void {
         if (!button) return;
-        button.setScale(1, 1, 1);
+        const baseScale = button.scale.clone();
         tween(button)
             .delay(delay)
-            .to(0.18, { scale: new Vec3(1.5, 1.5, 1) }, { easing: 'quadOut' })
-            .to(0.16, { scale: new Vec3(1, 1, 1) }, { easing: 'quadIn' })
+            .to(0.18, {
+                scale: new Vec3(baseScale.x * 1.5, baseScale.y * 1.5, baseScale.z),
+            }, { easing: 'quadOut' })
+            .to(0.16, { scale: baseScale }, { easing: 'quadIn' })
             .start();
     }
 
