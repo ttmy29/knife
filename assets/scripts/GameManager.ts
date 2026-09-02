@@ -64,15 +64,6 @@ export class GameManager extends Component {
     private powerSuitChest: Chest | null = null;
     private glowHolder: Node | null = null;
     private glowingMonster: Monster | null = null;
-    private glowingMonsterParent: Node | null = null;
-    private glowingMonsterSiblingIndex = -1;
-    private glowingMonsterScale: Vec3 | null = null;
-    private glowingLabelRoot: Node | null = null;
-    private glowingLabelParent: Node | null = null;
-    private glowingLabelSiblingIndex = -1;
-    private glowingLabelPosition: Vec3 | null = null;
-    private glowingLabelScale: Vec3 | null = null;
-    private glowingLabelActive = true;
     private hideGlowTask: (() => void) | null = null;
     private guideNode: Node | null = null;
     private monsterGuideActive = false;
@@ -103,8 +94,17 @@ export class GameManager extends Component {
         this.camera = canvas ? canvas.getComponentInChildren(Camera) : null;
         this.glowHolder = this.node.getChildByName('GlowHolder') || (canvas ? canvas.getChildByName('GlowHolder') : null);
         if (this.glowHolder) {
+            if (canvas && this.glowHolder.parent !== canvas) {
+                const worldIndex = this.node.getSiblingIndex();
+                this.glowHolder.setParent(canvas);
+                this.glowHolder.setScale(1, 1, 1);
+                this.glowHolder.setSiblingIndex(worldIndex + 1);
+            }
             const snapshot = this.glowHolder.getComponent('Snapshot') as any;
-            if (snapshot) snapshot.snapshotLayer = 27;
+            if (snapshot) {
+                snapshot.snapshotLayer = 27;
+                snapshot.target = null;
+            }
             for (const child of this.glowHolder.children) {
                 if (child.name !== 'Camera') child.active = false;
             }
@@ -751,10 +751,8 @@ export class GameManager extends Component {
         }
 
         const clickedMonster = this.grid.getMonsterAt(cell.x, cell.y);
-        //if (clickedMonster) {this.showMonsterGlow(clickedMonster);}
-        if(clickedMonster){
-
-        }  else{ this.hideMonsterGlow()};
+        if (clickedMonster) this.showMonsterGlow(clickedMonster);
+        else this.hideMonsterGlow();
     }
 
     private onTouchEnd(event: EventTouch): void {
@@ -1223,28 +1221,14 @@ export class GameManager extends Component {
     private showMonsterGlow(monster: Monster): void {
         if (!this.glowHolder || !monster.node || !monster.node.isValid) return;
         this.hideMonsterGlow();
-        const parent = monster.node.parent;
-        if (!parent) return;
+        const spineNode = monster.getSpineNode();
+        if (!spineNode) return;
+        const snapshot = this.glowHolder.getComponent('Snapshot') as any;
+        if (!snapshot || !this.syncMonsterGlowBounds(spineNode, snapshot)) return;
 
-        const localPos = monster.node.position.clone();
-        const scale = monster.node.scale.clone();
         this.glowingMonster = monster;
-        this.glowingMonsterParent = parent;
-        this.glowingMonsterSiblingIndex = parent.children.indexOf(monster.node);
-        this.glowingMonsterScale = scale;
-        this.detachMonsterLabelForGlow(monster, parent);
-
-        this.glowHolder.setPosition(localPos);
+        snapshot.target = spineNode;
         this.glowHolder.active = true;
-        monster.node.setParent(this.glowHolder);
-        monster.node.setPosition(0, 0, 0);
-        const worldScale = this.node.scale;
-        monster.node.setScale(
-            worldScale.x !== 0 ? scale.x / worldScale.x : scale.x,
-            worldScale.y !== 0 ? scale.y / worldScale.y : scale.y,
-            scale.z,
-        );
-
     }
 
     private hideMonsterGlow(): void {
@@ -1252,22 +1236,58 @@ export class GameManager extends Component {
             this.unschedule(this.hideGlowTask);
             this.hideGlowTask = null;
         }
-        const monster = this.glowingMonster;
-        const parent = this.glowingMonsterParent;
-        if (monster && monster.node && monster.node.isValid && parent && parent.isValid) {
-            const glowLocalPos = this.glowHolder ? this.glowHolder.position.clone() : monster.node.position.clone();
-            const scale = this.glowingMonsterScale;
-            monster.node.setParent(parent);
-            monster.node.setPosition(glowLocalPos);
-            if (scale) monster.node.setScale(scale);
-            if (this.glowingMonsterSiblingIndex >= 0) monster.node.setSiblingIndex(this.glowingMonsterSiblingIndex);
-        }
-        this.restoreMonsterLabelAfterGlow();
         if (this.glowHolder) this.glowHolder.active = false;
+        const snapshot = this.glowHolder ? this.glowHolder.getComponent('Snapshot') as any : null;
+        if (snapshot) snapshot.target = null;
         this.glowingMonster = null;
-        this.glowingMonsterParent = null;
-        this.glowingMonsterSiblingIndex = -1;
-        this.glowingMonsterScale = null;
+    }
+
+    /** 共用一张紧贴目标 Spine 的正方形 RenderTexture，避免固定大画布。 */
+    private syncMonsterGlowBounds(spineNode: Node, snapshot: any): boolean {
+        if (!this.glowHolder || !this.glowHolder.parent) return false;
+        const overlayTransform = this.glowHolder.parent.getComponent(UITransform);
+        const glowTransform = this.glowHolder.getComponent(UITransform);
+        if (!overlayTransform || !glowTransform) return false;
+
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        const localPoint = new Vec3();
+
+        const collect = (node: Node) => {
+            const ui = node.getComponent(UITransform);
+            if (ui) {
+                const left = -ui.anchorX * ui.width;
+                const right = (1 - ui.anchorX) * ui.width;
+                const bottom = -ui.anchorY * ui.height;
+                const top = (1 - ui.anchorY) * ui.height;
+                const corners = [
+                    new Vec3(left, bottom),
+                    new Vec3(left, top),
+                    new Vec3(right, bottom),
+                    new Vec3(right, top),
+                ];
+                for (const corner of corners) {
+                    overlayTransform.convertToNodeSpaceAR(ui.convertToWorldSpaceAR(corner), localPoint);
+                    minX = Math.min(minX, localPoint.x);
+                    minY = Math.min(minY, localPoint.y);
+                    maxX = Math.max(maxX, localPoint.x);
+                    maxY = Math.max(maxY, localPoint.y);
+                }
+            }
+            for (const child of node.children) collect(child);
+        };
+        collect(spineNode);
+
+        if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) return false;
+        const padding = 40;
+        const side = Math.max(1, maxX - minX, maxY - minY) + padding;
+        this.glowHolder.setPosition((minX + maxX) * 0.5, (minY + maxY) * 0.5, 0);
+        glowTransform.setAnchorPoint(0.5, 0.5);
+        glowTransform.setContentSize(side, side);
+        if (snapshot.updateSize) snapshot.updateSize();
+        return true;
     }
 
     private hideMonsterGlowLater(delay = 0.3): void {
@@ -1275,45 +1295,6 @@ export class GameManager extends Component {
         if (this.hideGlowTask) this.unschedule(this.hideGlowTask);
         this.hideGlowTask = () => this.hideMonsterGlow();
         this.scheduleOnce(this.hideGlowTask, delay);
-    }
-
-    private detachMonsterLabelForGlow(monster: Monster, fallbackParent: Node): void {
-        const labelRoot = monster.getPowerLabelGlowRoot();
-        if (!labelRoot || !labelRoot.isValid || labelRoot === monster.node) return;
-        const labelParent = labelRoot.parent;
-        if (!labelParent) return;
-
-        this.glowingLabelRoot = labelRoot;
-        this.glowingLabelParent = labelParent;
-        this.glowingLabelSiblingIndex = labelParent.children.indexOf(labelRoot);
-        this.glowingLabelPosition = labelRoot.position.clone();
-        this.glowingLabelScale = labelRoot.scale.clone();
-        this.glowingLabelActive = labelRoot.active;
-
-        const overlayParent = this.glowHolder && this.glowHolder.parent ? this.glowHolder.parent : fallbackParent;
-        labelRoot.setParent(overlayParent, true);
-        labelRoot.active = this.glowingLabelActive;
-        if (this.glowHolder && overlayParent === this.glowHolder.parent) {
-            labelRoot.setSiblingIndex(this.glowHolder.getSiblingIndex() + 1);
-        }
-    }
-
-    private restoreMonsterLabelAfterGlow(): void {
-        const labelRoot = this.glowingLabelRoot;
-        const labelParent = this.glowingLabelParent;
-        if (labelRoot && labelRoot.isValid && labelParent && labelParent.isValid) {
-            labelRoot.setParent(labelParent);
-            if (this.glowingLabelPosition) labelRoot.setPosition(this.glowingLabelPosition);
-            if (this.glowingLabelScale) labelRoot.setScale(this.glowingLabelScale);
-            labelRoot.active = this.glowingLabelActive;
-            if (this.glowingLabelSiblingIndex >= 0) labelRoot.setSiblingIndex(this.glowingLabelSiblingIndex);
-        }
-        this.glowingLabelRoot = null;
-        this.glowingLabelParent = null;
-        this.glowingLabelSiblingIndex = -1;
-        this.glowingLabelPosition = null;
-        this.glowingLabelScale = null;
-        this.glowingLabelActive = true;
     }
 
     /** 经验球全部吸收后，把已生效的逻辑战力滚动到显示数字。 */

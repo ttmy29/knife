@@ -42,6 +42,7 @@ export class Monster extends Component {
     private labelBaseScaleZ = 1;
     /** 怪物资源默认 scale.x > 0 时朝左，-1 时朝右。 */
     private facing = 1;
+    private spineNode: Node | null = null;
     private skeletons: sp.Skeleton[] = [];
     private animName = 'idle';
     private attackAnimation = 'phyattack';
@@ -84,8 +85,11 @@ export class Monster extends Component {
             }
         }
         this.applyFacing();
-        // 怪物骨架（可能在根节点，也可能在子节点）全部拿下来，初始播 idle
-        this.skeletons = this.node.getComponentsInChildren(sp.Skeleton);
+        // 怪物身体统一放在 spine 节点，避免把根节点上的旧组件或特效骨骼当成身体动画。
+        this.spineNode = this.node.getChildByName('spine');
+        this.skeletons = this.spineNode
+            ? this.spineNode.getComponentsInChildren(sp.Skeleton)
+            : this.node.getComponentsInChildren(sp.Skeleton);
         this.playIdle();
         if (registerOnGrid) this.activateOnGrid();
     }
@@ -299,12 +303,8 @@ export class Monster extends Component {
         if (this.powerLabel) this.powerLabel.string = text;
     }
 
-    getPowerLabelGlowRoot(): Node | null {
-        if (!this.powerLabel || !this.powerLabel.node || !this.powerLabel.node.isValid) return null;
-        if (!this.powerLabel.node.isChildOf(this.node)) return null;
-        const parent = this.powerLabel.node.parent;
-        if (parent && parent !== this.node) return parent;
-        return this.powerLabel.node;
+    getSpineNode(): Node | null {
+        return this.spineNode && this.spineNode.isValid ? this.spineNode : null;
     }
 
     /** 攻击动画播完回调 */
