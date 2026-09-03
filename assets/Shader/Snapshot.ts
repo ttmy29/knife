@@ -46,14 +46,15 @@ class Snapshot extends Component {
     camera: CameraComponent = null;
     sprite: Sprite = null;
     private layerRecords: { node: Node, layer: number }[] = [];
+    private renderTexture: RenderTexture | null = null;
+    private renderTextureWidth = 0;
+    private renderTextureHeight = 0;
     protected onLoad(): void {
         this.sprite = this.node.getComponent(Sprite);
         this.sprite.material.setProperty('sampleFromRt', 1);
         let ut = this.node.getComponent(UITransform);
-        let renderTexture = new RenderTexture();
-        renderTexture.initialize({ width: Math.max(ut.width, 1), height: Math.max(ut.height, 1) });
         this.sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-        (this.sprite.spriteFrame ||= new SpriteFrame()).texture = renderTexture;
+        this.resizeRenderTexture(ut.width, ut.height);
         let cameraNode = this.node.getChildByName('Camera');
         if (!isValid(cameraNode)) {
             cameraNode = new Node('Camera');
@@ -69,7 +70,7 @@ class Snapshot extends Component {
         camera.clearColor = new Color(0, 0, 0, 0);
         camera.near = 0;
         camera.projection = CameraComponent.ProjectionType.ORTHO;
-        camera.targetTexture = renderTexture;
+        camera.targetTexture = this.renderTexture;
         this.updateSize();
         this.node.on(NodeEventType.SIZE_CHANGED, this.updateSize, this);
         this.node.on(NodeEventType.CHILD_ADDED, this.onChildAdded, this);
@@ -98,10 +99,31 @@ class Snapshot extends Component {
     updateSize(): void {
         let ut = this.node.getComponent(UITransform);
         if (!this.camera || !this.camera.node || !ut) return;
+        this.resizeRenderTexture(ut.width, ut.height);
         let cw = ut.width * Math.abs(this.node.scale.x), ch = ut.height * Math.abs(this.node.scale.y);
         this.camera.node.setPosition(cw * (0.5 - ut.anchorX), ch * (0.5 - ut.anchorY));
         this.camera.orthoHeight = ch * 0.5;
         this.camera.far = ch;
+    }
+    private resizeRenderTexture(width: number, height: number): void {
+        const nextWidth = Math.max(1, Math.ceil(width));
+        const nextHeight = Math.max(1, Math.ceil(height));
+        if (this.renderTexture
+            && this.renderTextureWidth === nextWidth
+            && this.renderTextureHeight === nextHeight) {
+            return;
+        }
+        const renderTexture = new RenderTexture();
+        renderTexture.initialize({ width: nextWidth, height: nextHeight });
+        this.renderTexture = renderTexture;
+        this.renderTextureWidth = nextWidth;
+        this.renderTextureHeight = nextHeight;
+        if (this.sprite) {
+            (this.sprite.spriteFrame ||= new SpriteFrame()).texture = renderTexture;
+        }
+        if (this.camera) {
+            this.camera.targetTexture = renderTexture;
+        }
     }
     private setLayerRecursive(node: Node, layer: number): void {
         node.layer = layer;

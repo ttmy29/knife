@@ -1,6 +1,6 @@
 import {
     _decorator, Component, Node, Graphics, UITransform,
-    Label, Color, Vec2, Vec3, input, Input, EventTouch, director, Button, Camera, sp,
+    Label, Color, Vec2, Vec3, input, Input, EventTouch, director, Camera, sp,
     UIOpacity, tween, view,
 } from 'cc';
 import { Grid } from './Grid';
@@ -45,7 +45,6 @@ export class GameManager extends Component {
     private player: Player | null = null;
     private playerRoleType: PlayerRoleType = 'role';
     private pathLine: PathLine | null = null;
-    private battleResultNode: Node | null = null;
     private uiLayer: Node | null = null;
     private camera: Camera | null = null;
     private dropsNode: Node | null = null;
@@ -55,7 +54,6 @@ export class GameManager extends Component {
     private pendingPowerGain = 0;
     private powerGainAnimating = false;
     private battling = false;
-    private retryButton: Node | null = null;
     private failPanel: Node | null = null;
     private victoryPanel: Node | null = null;
     private finalMonster: Monster | null = null;
@@ -291,7 +289,7 @@ export class GameManager extends Component {
         try {
             node = PrefabManager.createRole();
             node.name = 'PlayerInstance';
-            this.fitToTile(node, 50);
+            this.applyConfiguredPlayerScale(node, 'role');
         } catch (err) {
             console.error('[GameManager] create role prefab failed', err);
             node = this.createPlaceholder(Level1.tileSize * 0.6, new Color(90, 200, 255, 255));
@@ -300,6 +298,13 @@ export class GameManager extends Component {
         container.addChild(node);
         const player = node.addComponent(Player);
         player.init(Level1.playerPower, Level1.playerSpawn.col, Level1.playerSpawn.row, this.grid);
+        const spawnWorld = this.getPlayerSpawnLocalPosition();
+        player.node.setPosition(spawnWorld);
+        const spawnCell = this.grid.worldToGrid(spawnWorld);
+        if (spawnCell) {
+            player.gridCol = spawnCell.x;
+            player.gridRow = spawnCell.y;
+        }
         this.bindPlayerEvents(player);
         this.applyPlayerRoleProfile(player, 'role');
         this.player = player;
@@ -389,20 +394,39 @@ export class GameManager extends Component {
         const follow = this.camera.getComponent(CameraFollow) || this.camera.addComponent(CameraFollow);
         follow.target = null;
         if (!this.openingSequenceActive) {
-            const playerLocal = this.grid.gridToWorld(Level1.playerSpawn.col, Level1.playerSpawn.row);
+            const playerLocal = this.getPlayerSpawnLocalPosition();
             follow.snapToWorldPosition(worldTransform.convertToWorldSpaceAR(playerLocal));
             return;
         }
         const data = Level1.monsters.find(item => item.name === OpeningSequenceConfig.targetMonsterName);
         if (!data) {
             this.openingSequenceActive = false;
-            const playerLocal = this.grid.gridToWorld(Level1.playerSpawn.col, Level1.playerSpawn.row);
+            const playerLocal = this.getPlayerSpawnLocalPosition();
             follow.snapToWorldPosition(worldTransform.convertToWorldSpaceAR(playerLocal));
             return;
         }
         const cell = this.grid.worldToGrid(new Vec3(data.x, data.y, data.z || 0));
         const monsterLocal = cell ? this.grid.gridToWorld(cell.x, cell.y) : new Vec3(data.x, data.y, data.z || 0);
         follow.snapToWorldPosition(worldTransform.convertToWorldSpaceAR(monsterLocal));
+    }
+
+    private getPlayerSpawnLocalPosition(): Vec3 {
+        const world = Level1.playerSpawnWorld;
+        if (world) return new Vec3(world.x, world.y, world.z || 0);
+        return this.grid
+            ? this.grid.gridToWorld(Level1.playerSpawn.col, Level1.playerSpawn.row)
+            : new Vec3();
+    }
+
+    private applyConfiguredPlayerScale(node: Node, roleType: PlayerRoleType): void {
+        const roleScale = Level1.playerRoleScales?.[roleType];
+        const scale = roleScale || (roleType === 'role' ? Level1.playerScale : undefined);
+        if (!scale) return;
+        node.setScale(
+            scale.x !== undefined ? scale.x : node.scale.x,
+            scale.y !== undefined ? scale.y : node.scale.y,
+            scale.z !== undefined ? scale.z : node.scale.z,
+        );
     }
 
     update(dt: number): void {
@@ -434,6 +458,13 @@ export class GameManager extends Component {
 
             child.name = data.name;
             child.setPosition(data.x, data.y, data.z || 0);
+            if (data.scaleX !== undefined || data.scaleY !== undefined || data.scaleZ !== undefined) {
+                child.setScale(
+                    data.scaleX !== undefined ? data.scaleX : child.scale.x,
+                    data.scaleY !== undefined ? data.scaleY : child.scale.y,
+                    data.scaleZ !== undefined ? data.scaleZ : child.scale.z,
+                );
+            }
             const monster = child.getComponent(Monster) || child.addComponent(Monster);
             monster.prepareSpawnFade();
             const label = child.getComponentInChildren(Label);
@@ -628,7 +659,6 @@ export class GameManager extends Component {
         // 不限战力，直接加
         this.player.power += chest.power;
         this.player.setDisplayedPower(this.player.getDisplayedPower() + chest.power);
-        this.updatePowerUI();
         // 宝箱消失
         if (this.grid) this.grid.removeChest(chest);
         if (chest.node) chest.node.active = false;
@@ -662,7 +692,7 @@ export class GameManager extends Component {
             return;
         }
         node.name = 'PlayerInstance';
-        this.fitToTile(node, 50);
+        this.applyConfiguredPlayerScale(node, roleType);
         const label = node.getComponentInChildren(Label);
         if (label) label.string = String(displayedPower);
         container.addChild(node);
@@ -676,7 +706,6 @@ export class GameManager extends Component {
         this.player = player;
         this.assignCameraTarget();
         this.tryMoveOpeningCameraToPlayer();
-        this.updatePowerUI();
         AudioManager.playCheer();
     }
 
@@ -718,22 +747,6 @@ export class GameManager extends Component {
         if (!this.uiLayer) return;
         this.guideNode = this.uiLayer.getChildByName('yindao');
         this.hideGuideNode();
-
-        // 战斗结果提示
-        const resultNode = this.uiLayer.getChildByName('BattleResult');
-        if (resultNode) {
-            this.battleResultNode = resultNode;
-            this.createLabelNode(resultNode, '', new Color(255, 255, 255, 255), 64, 0);
-            resultNode.active = false;
-        }
-
-        // 战力 HUD
-        const hud = this.uiLayer.getChildByName('PowerHUD');
-        if (hud) {
-            this.createLabelNode(hud, '战力：' + Level1.playerPower, new Color(200, 220, 255, 255), 30, 0);
-            hud.setPosition(-500, 290, 0);
-        }
-
     }
 
     // ---------------- 输入 ----------------
@@ -811,13 +824,7 @@ export class GameManager extends Component {
                 distanceOverride,
             );
             if (battlePath) {
-                const displayPath = battlePath.slice();
-                const suffix = movePath.slice(monsterHit.segmentIndex + 1);
-                for (const point of suffix) {
-                    const last = displayPath[displayPath.length - 1];
-                    if (!last || Vec3.distance(last, point) > 0.01) displayPath.push(point);
-                }
-                if (this.pathLine) this.pathLine.drawPath(displayPath, movePath[movePath.length - 1]);
+                if (this.pathLine) this.pathLine.drawPath(movePath, movePath[movePath.length - 1]);
                 this.player.moveTo(battlePath, monsterHit.monster);
                 return;
             }
@@ -891,7 +898,6 @@ export class GameManager extends Component {
                 monster.node.active = false;
             }
             if (this.activeBattleMonster === monster) this.activeBattleMonster = null;
-            this.updatePowerUI();
             if (monster === this.finalMonster) this.showVictoryUI();
         };
         if (win) {
@@ -1281,7 +1287,9 @@ export class GameManager extends Component {
         collect(spineNode);
 
         if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) return false;
-        const padding = 40;
+        const glowRim = this.glowHolder.getComponent('GlowRim') as any;
+        const outerWidth = glowRim ? Math.max(0, Number(glowRim.outerWidth ?? glowRim._outerWidth) || 0) : 0;
+        const padding = Math.max(100, outerWidth * 4);
         const side = Math.max(1, maxX - minX, maxY - minY) + padding;
         this.glowHolder.setPosition((minX + maxX) * 0.5, (minY + maxY) * 0.5, 0);
         glowTransform.setAnchorPoint(0.5, 0.5);
@@ -1327,7 +1335,6 @@ export class GameManager extends Component {
                 ? targetPower
                 : startPlayerPower + Math.round(gain * step / steps);
             currentPlayer.setDisplayedPower(displayedPower);
-            this.updatePowerUI();
             if (step >= steps) {
                 this.unschedule(this.onPowerTick!);
                 this.onPowerTick = null;
@@ -1349,7 +1356,6 @@ export class GameManager extends Component {
             step++;
             player.power = Math.max(0, startPlayerPower - Math.round(startPlayerPower * step / 3));
             player.setDisplayedPower(player.power);
-            this.updatePowerUI();
             if (step >= 3) {
                 this.unschedule(this.onPowerTick!);
                 this.onPowerTick = null;
@@ -1358,29 +1364,7 @@ export class GameManager extends Component {
         this.schedule(this.onPowerTick, 0.2, 2);
     }
 
-    /** 刷新角色头顶数字和左上角战力 HUD */
-    private updatePowerUI(): void {
-        if (!this.player) return;
-        if (this.uiLayer) {
-            const hud = this.uiLayer.getChildByName('PowerHUD');
-            const label = hud && hud.getComponentInChildren(Label);
-            if (label) label.string = '战力：' + this.player.getDisplayedPower();
-        }
-    }
-
-    private showBattleResult(text: string, color: Color): void {
-        if (!this.battleResultNode) return;
-        const label = this.battleResultNode.getComponentInChildren(Label);
-        if (label) {
-            label.string = text;
-            label.color = color;
-        }
-        this.battleResultNode.active = true;
-        this.unschedule(this.hideBattleResult);
-        this.scheduleOnce(this.hideBattleResult, 1.2);
-    }
-
-    /** 角色死亡：显�?再来一�?按钮（复用原来的重载场景逻辑�?*/
+    /** 角色死亡：显示失败面板。 */
     private showDeathUI(): void {
         this.lockResultState();
 
@@ -1392,7 +1376,6 @@ export class GameManager extends Component {
             panel = PrefabManager.createFail();
         } catch (err) {
             console.error('[GameManager] create fail prefab failed', err);
-            this.showRestartButton('再来一次', new Color(70, 140, 255, 255));
             return;
         }
 
@@ -1403,7 +1386,7 @@ export class GameManager extends Component {
         this.failPanel = panel;
     }
 
-    /** 打败最终怪物：显�?游戏胜利"按钮（暂时复用再来一次逻辑�?*/
+    /** 打败最终怪物：显示胜利面板。 */
     private showVictoryUI(): void {
         this.lockResultState();
         if (!this.uiLayer || this.victoryPanel) return;
@@ -1414,7 +1397,6 @@ export class GameManager extends Component {
             panel = PrefabManager.createVictory();
         } catch (err) {
             console.error('[GameManager] create victory prefab failed', err);
-            this.showRestartButton('游戏胜利', new Color(70, 180, 110, 255));
             return;
         }
 
@@ -1442,40 +1424,7 @@ export class GameManager extends Component {
         if (follow) follow.enabled = false;
     }
 
-    private showRestartButton(text: string, color: Color): void {
-        if (!this.uiLayer || this.retryButton) return;
-        const btn = new Node('RetryButton');
-        btn.addComponent(UITransform).setContentSize(240, 68);
-        const g = btn.addComponent(Graphics);
-        g.fillColor = color;
-        g.rect(-120, -34, 240, 68);
-        g.fill();
-        const camNode = this.camera ? this.camera.node : null;
-        btn.setPosition(camNode ? camNode.position.x : 0, (camNode ? camNode.position.y : 0) - 260, 0);
-        this.uiLayer.addChild(btn);
-        this.createLabelNode(btn, text, new Color(255, 255, 255, 255), 34, 0);
-        const b = btn.addComponent(Button);
-        b.transition = Button.Transition.NONE;
-        b.target = btn;
-        btn.on(Button.EventType.CLICK, () => director.loadScene('game'));
-        this.retryButton = btn;
-    }
-
-    private hideBattleResult(): void {
-        if (this.battleResultNode) this.battleResultNode.active = false;
-    }
-
     // ---------------- 工具 ----------------
-
-    private fitToTile(node: Node, targetSize: number): void {
-        const ut = node.getComponent(UITransform);
-        if (!ut) return;
-        const w = ut.width;
-        const h = ut.height;
-        if (w <= 0 || h <= 0) return;
-        const scale = targetSize / Math.max(w, h);
-        node.setScale(scale, scale, 1);
-    }
 
     private createPlaceholder(size: number, color: Color): Node {
         const n = new Node('Placeholder');
@@ -1487,18 +1436,4 @@ export class GameManager extends Component {
         return n;
     }
 
-    private createLabelNode(parent: Node, text: string, color: Color, fontSize: number, yOffset: number): Label {
-        const n = new Node('Label');
-        n.name = 'PowerLabel';
-        n.addComponent(UITransform).setContentSize(200, 60);
-        const label = n.addComponent(Label);
-        label.string = text;
-        label.fontSize = fontSize;
-        label.lineHeight = fontSize + 6;
-        label.color = color;
-        label.isBold = true;
-        parent.addChild(n);
-        n.setPosition(0, yOffset, 0);
-        return label;
-    }
 }

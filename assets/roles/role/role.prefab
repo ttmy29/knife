@@ -58,8 +58,8 @@
     },
     "_lscale": {
       "__type__": "cc.Vec3",
-      "x": 0.3,
-      "y": 0.3,
+      "x": 1,
+      "y": 1,
       "z": 1
     },
     "_mobility": 0,
@@ -2486,7 +2486,7 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 20.6845703125,
+      "width": 37.369140625,
       "height": 22.9
     },
     "_anchorPoint": {
@@ -2522,7 +2522,7 @@
       "b": 255,
       "a": 255
     },
-    "_string": "29",
+    "_string": "2900",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
     "_actualFontSize": 15,

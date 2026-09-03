@@ -6,6 +6,6 @@ export interface MonsterGuideProfile {
 }
 
 export const MonsterGuideConfig: MonsterGuideProfile = {
-    targetMonsterName: 'monster3-2',
+    targetMonsterName: 'monster9',
     animationName: 'yindao_dianji',
 };
