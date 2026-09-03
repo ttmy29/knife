@@ -11,7 +11,7 @@ export interface FinalBossBattleProfile {
     maskCameraZoomScale: number;
     /** 黑幕开始时镜头拉近所需时间（秒）。 */
     maskCameraZoomDuration: number;
-    /** 黑幕期间镜头向右偏移的世界距离。 */
+    /** 黑幕期间镜头横向偏移的世界距离；负数向左，正数向右。 */
     maskCameraOffsetX: number;
     /** 第二次终结攻击使用的时间倍率。 */
     finisherSlowScale: number;
@@ -36,7 +36,7 @@ export const FinalBossBattleConfig: FinalBossBattleProfile = {
     maskFadeInDuration: 0.1,
     maskCameraZoomScale: 0.8,
     maskCameraZoomDuration: 0.3,
-    maskCameraOffsetX: 100,
+    maskCameraOffsetX: -100,
     finisherSlowScale: 0.2,//0.35
     finisherSlowStartDelay: 0.6,
     finisherAttackSoundDelay: 0.8,//0.6+0.2*0.5=0.7,,,相当于1.1s才播放攻击音效;
