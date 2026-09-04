@@ -3,7 +3,6 @@ import { Grid } from './Grid';
 import { Monster } from './Monster';
 import { Level1 } from './GameConfig';
 import { MonsterGlowController } from './MonsterGlowController';
-import { MonsterGuideController } from './MonsterGuideController';
 import { OpeningSequenceConfig } from './config/OpeningSequenceConfig';
 import {
     MonsterProfiles,
@@ -25,7 +24,6 @@ export class MonsterController {
         private readonly getGrid: () => Grid | null,
         private readonly getCamera: () => Camera | null,
         private readonly glow: MonsterGlowController | null,
-        private readonly guide: MonsterGuideController | null,
         private readonly isOpeningSequenceActive: () => boolean,
         private readonly getActiveBattleMonster: () => Monster | null,
         private readonly getFinisherMonster: () => Monster | null,
@@ -115,9 +113,6 @@ export class MonsterController {
             }
             if (!highestMonster || monster.power > highestMonster.power) highestMonster = monster;
             if (data.name === 'monster1') this.finalMonster = monster;
-            if (this.guide?.isTarget(data.name)) {
-                this.guide.requestStart(monster, this.isOpeningSequenceActive());
-            }
         }
 
         if (!this.finalMonster) this.finalMonster = highestMonster;

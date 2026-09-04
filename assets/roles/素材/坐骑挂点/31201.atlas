@@ -1,0 +1,13 @@
+
+31201.png
+size: 128,64
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+yy 1
+  rotate: false
+  xy: 0, 0
+  size: 71, 40
+  orig: 71, 40
+  offset: 0, 0
+  index: -1

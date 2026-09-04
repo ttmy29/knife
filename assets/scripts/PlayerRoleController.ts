@@ -10,7 +10,7 @@ import {
 import { AudioManager } from './core/AudioManager';
 import { PrefabManager } from './core/PrefabManager';
 
-type SwitchableRoleType = 'role1' | 'role2';
+export type SwitchableRoleType = 'role1' | 'role2' | 'role3';
 
 export class PlayerRoleController {
     private roleType: PlayerRoleType = 'role';
@@ -57,7 +57,7 @@ export class PlayerRoleController {
         }
 
         this.bindPlayerEvents(player);
-        this.applyPlayerRoleProfile(player, 'role');
+        this.applyPlayerRoleProfile(player, 'role', false);
         this.setPlayer(player);
         this.assignCameraTarget();
         this.tryMoveOpeningCameraToPlayer();
@@ -80,7 +80,8 @@ export class PlayerRoleController {
 
         let node: Node;
         try {
-            node = roleType === 'role2' ? PrefabManager.createRole2() : PrefabManager.createRole1();
+            if (roleType === 'role3') node = PrefabManager.createRole3();
+            else node = roleType === 'role2' ? PrefabManager.createRole2() : PrefabManager.createRole1();
         } catch (err) {
             console.error(`[PlayerRoleController] create ${roleType} prefab failed`, err);
             return;
@@ -103,7 +104,7 @@ export class PlayerRoleController {
         AudioManager.playCheer();
     }
 
-    private applyPlayerRoleProfile(player: Player, roleType: PlayerRoleType): void {
+    applyPlayerRoleProfile(player: Player, roleType: PlayerRoleType, playIntro = true): void {
         const profile = PlayerRoleProfiles[roleType];
         this.roleType = roleType;
         player.setAttackProfile(
@@ -112,7 +113,7 @@ export class PlayerRoleController {
             profile.attackSoundDelay,
             profile.attackImpactDelay,
         );
-        if (profile.introAnimation) player.playSkillOnce(profile.introAnimation);
+        if (playIntro && profile.introAnimation) player.playSkillOnce(profile.introAnimation);
     }
 
     private applyConfiguredPlayerScale(node: Node, roleType: PlayerRoleType): void {

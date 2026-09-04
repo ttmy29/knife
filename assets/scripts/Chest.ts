@@ -10,6 +10,8 @@ const { ccclass, property } = _decorator;
  */
 @ccclass('Chest')
 export class Chest extends Component {
+    private static readonly equipmentNames = new Set(['dao', 'dachui', 'kuijia', 'toukui', 'mount']);
+
     /** 拾取范围 = 节点大小 x 该系数 */
     @property
     public footprintScale = 0.8;
@@ -31,6 +33,10 @@ export class Chest extends Component {
         }
         this.computeCells();
         grid.addChest(this);
+    }
+
+    isEquipment(): boolean {
+        return Chest.equipmentNames.has(this.node.name);
     }
 
     private computeCells(): void {
@@ -58,7 +64,9 @@ export class Chest extends Component {
     }
 
     private getCollisionBounds(): { center: Vec3; width: number; height: number } {
-        const target = this.node.getChildByName('icon') || this.node;
+        const target = Chest.equipmentNames.has(this.node.name)
+            ? this.node
+            : this.node.getChildByName('icon') || this.node;
         const targetUI = target.getComponent(UITransform);
         const gridUI = this.grid ? this.grid.node.getComponent(UITransform) : null;
         if (!targetUI || !gridUI) {

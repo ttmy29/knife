@@ -1,0 +1,13 @@
+
+31101_r.png
+size: 64,64
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+磨损 副本/ys
+  rotate: false
+  xy: 0, 0
+  size: 35, 38
+  orig: 35, 38
+  offset: 0, 0
+  index: -1

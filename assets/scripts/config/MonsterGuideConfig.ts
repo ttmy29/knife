@@ -1,11 +1,11 @@
 export interface MonsterGuideProfile {
-    /** 初始引导和黄色高亮指向的怪物节点名。 */
-    targetMonsterName: string;
+    /** 初始引导指向的节点名。 */
+    targetNodeName: string;
     /** 引导 Spine 循环播放的动画名。 */
     animationName: string;
 }
 
 export const MonsterGuideConfig: MonsterGuideProfile = {
-    targetMonsterName: 'monster9',
+    targetNodeName: 'dao',
     animationName: 'yindao_dianji',
 };

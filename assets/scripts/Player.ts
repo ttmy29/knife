@@ -11,7 +11,7 @@ export interface PlayerEvents {
     onArrive: (blockMonster: Monster | null) => void;
     /** 兜底：直接与怪物开战 */
     onBattle: (monster: Monster) => void;
-    /** 攻击动画播完后开宝箱 */
+    /** 触发宝箱逻辑：普通宝箱在攻击动画后触发，装备拾取会直接触发 */
     onChest: (chest: Chest) => void;
     /** 角色攻击动画开始时播放音效 */
     onAttack?: (sound: AttackAudioType) => void;
@@ -26,7 +26,7 @@ export class Player extends Component {
     private displayedPower = 4407;
 
     @property
-    public moveSpeed = 220;
+    public moveSpeed = 280;
 
     @property
     public attackStopPadding = 0;//之前20
@@ -47,6 +47,10 @@ export class Player extends Component {
     private facing = 1; // 1 朝右，-1 朝左
     private powerLabel: Label | null = null;
     private skeletons: sp.Skeleton[] = [];
+    private currentAnimSkeletons: sp.Skeleton[] = [];
+    private mountSkeletons: sp.Skeleton[] = [];
+    private mountActive = false;
+    private readonly mountSpineChildNames = ['31201', '31201_mount'];
     private readonly attackEffects = new Map<number, sp.Skeleton>();
     private activeAttackEffect: sp.Skeleton | null = null;
     private animationTimeScale = 1;
@@ -102,7 +106,7 @@ export class Player extends Component {
         this.facing = this.node.scale.x < 0 ? -1 : 1;
         // 角色组合骨骼只从 spine 收集；Effects 有独立动画，不能跟着播放 idle/run。
         this.spineNode = this.node.getChildByName('spine');
-        this.skeletons = this.spineNode ? this.spineNode.getComponentsInChildren(sp.Skeleton) : [];
+        this.skeletons = this.collectPlayerSkeletons();
         this.setupAttackEffects();
         this.setupExpWhiteGlow();
         this.dead = false;
@@ -110,6 +114,27 @@ export class Player extends Component {
         this.node.setPosition(grid.gridToWorld(col, row));
         this.refreshLabel();
         this.playIdle();
+    }
+
+    refreshSpineSkeletons(): void {
+        this.skeletons = this.collectPlayerSkeletons();
+        this.mountSkeletons = this.collectMountSkeletons();
+        this.setAnimationTimeScale(this.animationTimeScale);
+        this.animName = '';
+        if (this.moving) this.playRun();
+        else this.playIdle();
+    }
+
+    activateMount(): void {
+        if (!this.spineNode) return;
+
+        this.mountActive = true;
+        for (const childName of this.mountSpineChildNames) {
+            const child = this.spineNode.getChildByName(childName);
+            if (child) child.active = true;
+        }
+        this.mountSkeletons = this.collectMountSkeletons();
+        this.syncMountAnimation(this.moving ? 'run' : 'idle');
     }
 
     /** 战斗后战力变化时同步头顶 Label */
@@ -133,9 +158,35 @@ export class Player extends Component {
         this.attackImpactDelay = Math.max(0, impactDelay);
     }
 
+    setAttackEffectsGroup(groupName: string): void {
+        this.setupAttackEffects(groupName);
+    }
+
+    playUpgradeEffect(animationName?: string): void {
+        if (!animationName) return;
+        const effectNode = this.node.getChildByName('sxsj');
+        if (!effectNode) return;
+        effectNode.active = true;
+        const skeleton = effectNode.getComponent(sp.Skeleton)
+            || effectNode.getComponentInChildren(sp.Skeleton);
+        if (!skeleton) {
+            effectNode.active = false;
+            return;
+        }
+
+        skeleton.setCompleteListener(() => {
+            skeleton.setCompleteListener(() => {});
+            if (effectNode.isValid) effectNode.active = false;
+        });
+        skeleton.setAnimation(0, animationName, false);
+    }
+
     setAnimationTimeScale(scale: number): void {
         this.animationTimeScale = Math.max(0, scale);
         for (const skeleton of this.skeletons) {
+            if (skeleton && skeleton.isValid) skeleton.timeScale = this.animationTimeScale;
+        }
+        for (const skeleton of this.mountSkeletons) {
             if (skeleton && skeleton.isValid) skeleton.timeScale = this.animationTimeScale;
         }
         for (const effect of this.attackEffects.values()) {
@@ -180,9 +231,80 @@ export class Player extends Component {
         if (skeletons.length === 0) return;
         if (this.animName === name) return;
         this.animName = name;
+        this.currentAnimSkeletons = [];
         for (const sk of skeletons) {
-            if (sk && sk.isValid) sk.setAnimation(0, name, loop);
+            if (!sk || !sk.isValid || !this.hasSkeletonAnimation(sk, name)) continue;
+            sk.setAnimation(0, name, loop);
+            this.currentAnimSkeletons.push(sk);
         }
+        if (name === 'idle' || name === 'run') {
+            this.syncMountAnimation(name);
+        }
+    }
+
+    private collectPlayerSkeletons(): sp.Skeleton[] {
+        if (!this.spineNode) return [];
+        return this.spineNode
+            .getComponentsInChildren(sp.Skeleton)
+            .filter(skeleton => !this.isMountSkeleton(skeleton.node));
+    }
+
+    private collectMountSkeletons(): sp.Skeleton[] {
+        if (!this.spineNode) return [];
+        const skeletons: sp.Skeleton[] = [];
+        for (const childName of this.mountSpineChildNames) {
+            const child = this.spineNode.getChildByName(childName);
+            if (!child || !child.activeInHierarchy) continue;
+            const childSkeletons = child.getComponentsInChildren(sp.Skeleton)
+                .filter(skeleton => this.isMountSkeleton(skeleton.node));
+            skeletons.push(...childSkeletons);
+        }
+        return skeletons;
+    }
+
+    private isMountSkeleton(node: Node): boolean {
+        let current: Node | null = node;
+        while (current && current !== this.spineNode) {
+            if (current.name === 'rider') return false;
+            if (current.name === '31201') return true;
+            if (current.name === '31201_mount') return true;
+            current = current.parent;
+        }
+        return false;
+    }
+
+    private syncMountAnimation(name: 'idle' | 'run'): void {
+        if (!this.mountActive) return;
+        for (const skeleton of this.mountSkeletons) {
+            if (!skeleton || !skeleton.isValid || !this.hasSkeletonAnimation(skeleton, name)) continue;
+            skeleton.timeScale = this.animationTimeScale;
+            skeleton.setAnimation(0, name, true);
+        }
+    }
+
+    private hasSkeletonAnimation(skeleton: sp.Skeleton, name: string): boolean {
+        const sk = skeleton as unknown as {
+            findAnimation?: (animationName: string) => unknown;
+            skeletonData?: unknown;
+        };
+        if (typeof sk.findAnimation === 'function') {
+            return !!sk.findAnimation(name);
+        }
+
+        const skeletonData = sk.skeletonData as {
+            getRuntimeData?: () => { animations?: Array<{ name?: string }> };
+            skeletonJson?: { animations?: Record<string, unknown> };
+            _skeletonJson?: { animations?: Record<string, unknown> };
+        } | null | undefined;
+        const runtimeAnimations = skeletonData?.getRuntimeData?.().animations;
+        if (runtimeAnimations) {
+            return runtimeAnimations.some(animation => animation.name === name);
+        }
+        const jsonAnimations = skeletonData?.skeletonJson?.animations || skeletonData?._skeletonJson?.animations;
+        if (jsonAnimations) {
+            return Object.prototype.hasOwnProperty.call(jsonAnimations, name);
+        }
+        return true;
     }
 
     playIdle(): void {
@@ -242,9 +364,10 @@ export class Player extends Component {
         });
     }
 
-    private setupAttackEffects(): void {
+    private setupAttackEffects(effectsNodeName = 'Effects'): void {
         this.attackEffects.clear();
-        const effectsNode = this.node.getChildByName('Effects');
+        const effectsNode = this.node.getChildByName(effectsNodeName);
+        this.hideAttackEffectsGroups();
         if (!effectsNode) return;
 
         for (const child of effectsNode.children) {
@@ -252,6 +375,17 @@ export class Player extends Component {
             const skeleton = child.getComponent(sp.Skeleton);
             if (!match || !skeleton) continue;
             this.attackEffects.set(Number(match[1]), skeleton);
+            child.active = false;
+        }
+    }
+
+    private hideAttackEffectsGroups(): void {
+        if (this.activeAttackEffect && this.activeAttackEffect.node && this.activeAttackEffect.node.isValid) {
+            this.activeAttackEffect.node.active = false;
+            this.activeAttackEffect = null;
+        }
+        for (const child of this.node.children) {
+            if (!/^Effects\d*$/.test(child.name)) continue;
             child.active = false;
         }
     }
@@ -267,11 +401,13 @@ export class Player extends Component {
             this.activeAttackEffect.node.active = false;
         }
         this.activeAttackEffect = effect;
+        if (effect.node.parent) effect.node.parent.active = true;
         effect.timeScale = this.animationTimeScale;
         effect.node.active = true;
         effect.setCompleteListener(() => {
             effect.setCompleteListener(() => {});
             if (effect.node && effect.node.isValid) effect.node.active = false;
+            if (effect.node.parent && effect.node.parent.isValid) effect.node.parent.active = false;
             if (this.activeAttackEffect === effect) this.activeAttackEffect = null;
         });
         effect.setAnimation(0, 'animation', false);
@@ -385,7 +521,7 @@ export class Player extends Component {
 
     private onceAnimComplete(cb: () => void): void {
         const valid: sp.Skeleton[] = [];
-        const skeletons = this.skeletons || [];
+        const skeletons = this.currentAnimSkeletons || [];
         for (const sk of skeletons) {
             if (sk && sk.isValid) valid.push(sk);
         }
@@ -435,6 +571,11 @@ export class Player extends Component {
                 if (occ.monster) {
                     if (this.events && this.events.onBattle) this.events.onBattle(occ.monster);
                 } else if (occ.chest) {
+                    if (occ.chest.isEquipment()) {
+                        this.playIdle();
+                        if (this.events && this.events.onChest) this.events.onChest(occ.chest);
+                        return;
+                    }
                     // 宝箱：攻击动画播完才开箱
                     this.interacting = true;
                     this.playAttack(() => {

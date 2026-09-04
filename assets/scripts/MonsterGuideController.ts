@@ -1,15 +1,13 @@
 import { Node, sp } from 'cc';
-import { Monster } from './Monster';
-import { MonsterGlowController } from './MonsterGlowController';
 import { MonsterGuideConfig } from './config/MonsterGuideConfig';
 
 export class MonsterGuideController {
     private guideNode: Node | null = null;
     private active = false;
     private dismissed = false;
-    private pendingMonster: Monster | null = null;
+    private pendingTarget: Node | null = null;
 
-    constructor(private readonly glow: MonsterGlowController) {}
+    constructor() {}
 
     init(uiLayer: Node | null): void {
         this.active = false;
@@ -18,23 +16,19 @@ export class MonsterGuideController {
         this.hideNode();
     }
 
-    isTarget(monsterName: string): boolean {
-        return monsterName === MonsterGuideConfig.targetMonsterName;
-    }
-
-    requestStart(monster: Monster, openingActive: boolean): void {
+    requestStartForNode(node: Node, openingActive: boolean): void {
         if (openingActive) {
-            this.pendingMonster = monster;
+            this.pendingTarget = node;
             return;
         }
-        this.start(monster);
+        this.start(node);
     }
 
     flushPending(): void {
-        const monster = this.pendingMonster;
-        this.pendingMonster = null;
-        if (monster && monster.node && monster.node.isValid) {
-            this.start(monster);
+        const target = this.pendingTarget;
+        this.pendingTarget = null;
+        if (target && target.isValid) {
+            this.start(target);
         }
     }
 
@@ -44,16 +38,16 @@ export class MonsterGuideController {
         this.dismissed = true;
         this.active = false;
         this.hideNode();
-        if (wasActive) this.glow.hide();
         return wasActive;
     }
 
     destroy(): void {
-        this.pendingMonster = null;
+        this.pendingTarget = null;
         this.hideNode();
     }
 
-    private start(monster: Monster): void {
+    private start(node: Node): void {
+        if (!node || !node.isValid) return;
         if (this.dismissed || this.active) return;
         this.active = true;
         const guideNode = this.guideNode;
@@ -63,7 +57,6 @@ export class MonsterGuideController {
                 || guideNode.getComponentInChildren(sp.Skeleton);
             if (skeleton) skeleton.setAnimation(0, MonsterGuideConfig.animationName, true);
         }
-        this.glow.show(monster);
     }
 
     private hideNode(): void {

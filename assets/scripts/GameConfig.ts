@@ -24,8 +24,8 @@ export interface LevelData {
     monsters: MonsterSpawnData[];
 }
 
-export type MonsterPrefabType = 'monster1' | 'monster2' | 'monster3' | 'monster4';
-export type PlayerRolePrefabType = 'role' | 'role1' | 'role2';
+export type MonsterPrefabType = 'monster1' | 'monster2' | 'monster3' | 'monster4' | 'monster5' | 'monster6';
+export type PlayerRolePrefabType = 'role' | 'role1' | 'role2' | 'role3';
 
 export interface MonsterSpawnData {
     name: string;
@@ -51,19 +51,20 @@ export const Level1: LevelData = {
     playerRoleScales: {
         role1: { x: 0.7, y: 0.7, z: 1 },
         role2: { x: 0.7, y: 0.7, z: 1 },
+        role3: { x: 0.7, y: 0.7, z: 1 },
     },
     playerPower: 4407,
     monsters: [
-        { name: 'monster1', prefab: 'monster1', x: -277.382, y: 450.662, power: 3300, battleRadius: 90, scaleX: -0.8 },
-        { name: 'monster4', prefab: 'monster4', x: -107.554, y: 330.489, power: 150, scaleX: -0.5 },
-        { name: 'monster2', prefab: 'monster2', x: 126.462, y: 230.379, power: 400, scaleX: -0.5 },
+        { name: 'monster1', prefab: 'monster1', x: -277.382, y: 450.662, power: 2700, battleRadius: 90, scaleX: -0.8 },//3300
+        { name: 'monster4', prefab: 'monster4', x: -107.554, y: 330.489, power: 450, scaleX: -0.5 },
+        { name: 'monster2', prefab: 'monster5', x: 126.462, y: 230.379, power: 1000, scaleX: -0.5 },//400
         { name: 'monster3', prefab: 'monster3', x: -42.007, y: -21.781, power: 250, scaleX: -0.5 },
-        { name: 'monster5', prefab: 'monster4', x: -321.68, y: -94.633, power: 200, scaleX: -0.5 },
+        { name: 'monster5', prefab: 'monster5', x: -321.68, y: -94.633, power: 200, scaleX: -0.5 },
         { name: 'monster6', prefab: 'monster4', x: 132.602, y: -196.078, power: 50, scaleX: -0.5 },
         { name: 'monster7', prefab: 'monster2', x: -24.497, y: -272.32, power: 50, scaleX: -0.5 },
         { name: 'monster8', prefab: 'monster3', x: 87.701, y: -476.367, power: 25, scaleX: -0.5 },
         { name: 'monster9', prefab: 'monster2', x: 481.93, y: -442.716, power: 9, scaleX: -0.5 },
-        { name: 'monster10', prefab: 'monster4', x: 581.161, y: -157.51, power: 60, scaleX: 0.5 },
-        { name: 'monster11', prefab: 'monster4', x: -723.628, y: 62.503, power: 300, scaleX: -0.5 },
+        { name: 'monster10', prefab: 'monster6', x: 581.161, y: -157.51, power: 60, scaleX: 0.5 },
+        { name: 'monster11', prefab: 'monster6', x: -700, y: 62.503, power: 300, scaleX: -0.5 },
     ],
 };

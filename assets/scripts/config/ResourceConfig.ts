@@ -27,15 +27,23 @@ export const ResourcePath = {
     Prefab: {
         Box: 'baoxiang/baoxiang/box',
         PowerSuit: 'baoxiang/baoxiang/10004',
+        Dao: 'baoxiang/baoxiang/dao',
+        Dachui: 'baoxiang/baoxiang/dachui',
+        Kuijia: 'baoxiang/baoxiang/kuijia',
+        Toukui: 'baoxiang/baoxiang/toukui',
 
         Role: 'roles/role/role',
         Role1: 'roles/role/role1',
         Role2: 'roles/role/role2',
+        Role3: 'roles/role/role3',
+        Mount: 'baoxiang/baoxiang/mount',
 
         Monster1: 'monsters/monster/monster1',
         Monster2: 'monsters/monster/monster2',
         Monster3: 'monsters/monster/monster3',
         Monster4: 'monsters/monster/monster4',
+        Monster5: 'monsters/monster/monster5',
+        Monster6: 'monsters/monster/monster6',
         Monster3Shouji: 'monsters/monster3Spine/1000010shouji',
         Monster3Skill1: 'monsters/monster3Spine/1000010skill1',
 

@@ -1,0 +1,76 @@
+
+30801_r.png
+size: 64,1024
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+磨损 副本/friexq_01
+  rotate: false
+  xy: 0, 541
+  size: 40, 64
+  orig: 40, 64
+  offset: 0, 0
+  index: -1
+磨损 副本/friexq_02
+  rotate: false
+  xy: 0, 475
+  size: 40, 64
+  orig: 40, 64
+  offset: 0, 0
+  index: -1
+磨损 副本/friexq_03
+  rotate: false
+  xy: 0, 409
+  size: 40, 64
+  orig: 40, 64
+  offset: 0, 0
+  index: -1
+磨损 副本/friexq_04
+  rotate: false
+  xy: 0, 343
+  size: 40, 64
+  orig: 40, 64
+  offset: 0, 0
+  index: -1
+磨损 副本/friexq_05
+  rotate: false
+  xy: 0, 277
+  size: 40, 64
+  orig: 40, 64
+  offset: 0, 0
+  index: -1
+磨损 副本/friexq_06
+  rotate: false
+  xy: 0, 211
+  size: 40, 64
+  orig: 40, 64
+  offset: 0, 0
+  index: -1
+磨损 副本/friexq_07
+  rotate: false
+  xy: 0, 145
+  size: 40, 64
+  orig: 40, 64
+  offset: 0, 0
+  index: -1
+磨损 副本/friexq_08
+  rotate: false
+  xy: 0, 79
+  size: 40, 64
+  orig: 40, 64
+  offset: 0, 0
+  index: -1
+磨损 副本/yb
+  rotate: false
+  xy: 0, 0
+  size: 26, 25
+  orig: 26, 25
+  offset: 0, 0
+  index: -1
+磨损 副本/yjj
+  rotate: true
+  xy: 0, 27
+  size: 50, 42
+  orig: 50, 42
+  offset: 0, 0
+  index: -1

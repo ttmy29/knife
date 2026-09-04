@@ -67,7 +67,7 @@ export class GameManager extends Component {
         this.hintCamera = canvas ? canvas.getChildByName('Camera-001')?.getComponent(Camera) || null : null;
         this.monsterGlow = new MonsterGlowController(this, this.node);
         this.monsterGlow.init();
-        this.monsterGuide = new MonsterGuideController(this.monsterGlow);
+        this.monsterGuide = new MonsterGuideController();
         this.finalBossCinematic = new FinalBossCinematicController(
             this,
             () => this.camera,
@@ -80,7 +80,6 @@ export class GameManager extends Component {
             () => this.grid,
             () => this.camera,
             this.monsterGlow,
-            this.monsterGuide,
             () => this.openingSequence?.active || false,
             () => this.activeBattleMonster,
             () => this.finalBossCinematic?.currentFinisherMonster || null,
@@ -123,6 +122,9 @@ export class GameManager extends Component {
             () => this.player,
             () => this.pathLine?.clear(),
             (roleType) => this.playerRoles?.switchPlayerRole(this.player, roleType),
+            (player, roleType, playIntro) => this.playerRoles?.applyPlayerRoleProfile(player, roleType, playIntro),
+            (node, openingActive) => this.monsterGuide?.requestStartForNode(node, openingActive),
+            () => this.openingSequence?.active || false,
         );
         this.buildPathLine();
         this.monsterController.setupRenderLayers();
@@ -138,6 +140,7 @@ export class GameManager extends Component {
             () => this.battling,
             () => this.monsterController?.getFinalMonster() || null,
             () => this.playerRoles?.getCurrentProfile().normalMonsterBattleDistance,
+            () => this.playerRoles?.getCurrentProfile().bossMonsterBattleDistance,
             this.monsterGlow,
             () => this.monsterGuide?.dismiss() || false,
         );
@@ -216,6 +219,7 @@ export class GameManager extends Component {
             await Promise.all([
                 PrefabManager.loadRole1(),
                 PrefabManager.loadRole2(),
+                PrefabManager.loadRole3(),
                 PrefabManager.loadFail(),
                 PrefabManager.loadVictory(),
             ]);
@@ -231,7 +235,7 @@ export class GameManager extends Component {
                 this.loadStartupPrefabs(),
                 this.monsterController ? this.monsterController.spawnMonsters() : Promise.resolve(),
                 this.chests ? this.chests.spawnInitialChest() : Promise.resolve(),
-                this.chests ? this.chests.spawnPowerSuit() : Promise.resolve(),
+                this.chests ? this.chests.spawnEquipmentItems() : Promise.resolve(),
                 AudioManager.preloadFinalBossSounds(),
                 AudioManager.preloadRoleDie(),
                 this.openingSequence?.active ? AudioManager.preloadShout() : Promise.resolve(),

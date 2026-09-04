@@ -17,6 +17,7 @@ export class PlayerInputController {
         private readonly getBattling: () => boolean,
         private readonly getFinalMonster: () => Monster | null,
         private readonly getNormalMonsterBattleDistance: () => number | undefined,
+        private readonly getBossMonsterBattleDistance: () => number | undefined,
         private readonly glow: MonsterGlowController | null,
         private readonly dismissMonsterGuide: () => boolean,
     ) {}
@@ -43,7 +44,7 @@ export class PlayerInputController {
 
     private onTouchStart = (event: EventTouch): void => {
         if (this.getOpeningActive()) return;
-        if (this.dismissMonsterGuide()) return;
+        this.dismissMonsterGuide();
 
         const grid = this.getGrid();
         const player = this.getPlayer();
@@ -121,7 +122,7 @@ export class PlayerInputController {
         const monsterHit = grid.firstMonsterOnPath(movePath);
         if (monsterHit) {
             const distanceOverride = monsterHit.monster === this.getFinalMonster()
-                ? undefined
+                ? this.getBossMonsterBattleDistance()
                 : this.getNormalMonsterBattleDistance();
             const battlePath = grid.buildBattleApproachPath(
                 player.node.position,

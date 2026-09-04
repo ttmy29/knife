@@ -1,4 +1,4 @@
-export type MonsterType = 'monster1' | 'monster2' | 'monster3' | 'monster4';
+export type MonsterType = 'monster1' | 'monster2' | 'monster3' | 'monster4' | 'monster5' | 'monster6';
 
 export interface MonsterProfile {
     /** 普通战斗时播放的 Spine 攻击动画。 */
@@ -34,6 +34,12 @@ export const MonsterProfiles: Record<MonsterType, MonsterProfile> = {
         attackAnimation: 'phyattack',
     },
     monster4: {
+        attackAnimation: 'phyattack',
+    },
+    monster5: {
+        attackAnimation: 'phyattack',
+    },
+    monster6: {
         attackAnimation: 'phyattack',
     },
 };
