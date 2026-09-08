@@ -13,7 +13,10 @@ import { PrefabManager } from './core/PrefabManager';
 export type SwitchableRoleType = 'role1' | 'role2' | 'role3';
 
 export class PlayerRoleController {
+    /** 当前使用的攻击、音效和距离配置。 */
     private roleType: PlayerRoleType = 'role';
+    /** 当前实际实例化的角色预制体，不随拾取武器切换攻击配置而改变。 */
+    private prefabRoleType: PlayerRoleType = 'role';
 
     constructor(
         private readonly worldNode: Node,
@@ -27,6 +30,10 @@ export class PlayerRoleController {
 
     getCurrentProfile(): PlayerRoleProfile {
         return PlayerRoleProfiles[this.roleType];
+    }
+
+    getCurrentPrefabRoleType(): PlayerRoleType {
+        return this.prefabRoleType;
     }
 
     spawnInitialPlayer(): void {
@@ -57,6 +64,7 @@ export class PlayerRoleController {
         }
 
         this.bindPlayerEvents(player);
+        this.prefabRoleType = 'role';
         this.applyPlayerRoleProfile(player, 'role', false);
         this.setPlayer(player);
         this.assignCameraTarget();
@@ -97,6 +105,7 @@ export class PlayerRoleController {
         player.init(power, cell.x, cell.y, grid, displayedPower);
         player.setInitialFacing(facingDir);
         this.bindPlayerEvents(player);
+        this.prefabRoleType = roleType;
         this.applyPlayerRoleProfile(player, roleType);
         this.setPlayer(player);
         this.assignCameraTarget();

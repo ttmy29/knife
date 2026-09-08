@@ -2,16 +2,14 @@ import { _decorator, Component, Graphics, Color, Vec3 } from 'cc';
 
 const { ccclass } = _decorator;
 
-interface DashSeg {
-    a: Vec3;
-    b: Vec3;
-    start: number;
-    end: number;
+interface PathDot {
+    point: Vec3;
+    dist: number;
 }
 
 /**
- * 绿色路径线：点击时一次性把整条路线画好（虚线锚定在地面上，不随角色移动而抖动），
- * 角色走过一段就擦掉一段，目标点画圆圈。
+ * 点状路径提示：点击时一次性把整条路线采样成路径点，
+ * 角色走过一段就擦掉一段，目标点画淡色空心圆。
  */
 @ccclass('PathLine')
 export class PathLine extends Component {
@@ -25,9 +23,19 @@ export class PathLine extends Component {
     private target: Vec3 | null = null;
     /** 点击时算好的完整折线（含贝塞尔圆角采样点），后续不再变化 */
     private cachedPts: Vec3[] = [];
-    /** 虚线分段（锚定在路径几何上） */
-    private dashSegs: DashSeg[] = [];
+    /** 路径点（锚定在路径几何上） */
+    private pathDots: PathDot[] = [];
     private redrawElapsed = 0;
+    /** 路径小圆点半径。 */
+    private readonly dotRadius = 4;
+    /** 路径小圆点之间的距离。 */
+    private readonly dotSpacing = 36;
+    /** 第一个路径点距离起点的距离，避免贴住角色脚下。 */
+    private readonly firstDotOffset = 24;
+    /** 终点空心圆半径。 */
+    private readonly targetRadius = 8;
+    /** 最后一个路径点到终点空心圆外边缘的距离。 */
+    private readonly targetDotGap = 15;
 
     onLoad(): void {
         this.graphics = this.node.getComponent(Graphics) || this.node.addComponent(Graphics);
@@ -38,7 +46,7 @@ export class PathLine extends Component {
         this.points = worldPoints;
         this.target = target;
         this.cachedPts = this.buildPolyline(worldPoints);
-        this.buildDashes();
+        this.buildPathDots();
         this.redrawElapsed = 0;
         if (this.graphics) {
             this.graphics.clear();
@@ -74,31 +82,26 @@ export class PathLine extends Component {
         this.points = [];
         this.target = null;
         this.cachedPts = [];
-        this.dashSegs = [];
+        this.pathDots = [];
         this.redrawElapsed = 0;
         if (this.graphics) this.graphics.clear();
     }
 
-    /** 从里程 d 开始画剩余虚线（与角色相交的虚线段只画后半段） */
+    /** 从里程 d 开始画剩余路径点 */
     private redrawCached(fromDist: number): void {
         if (!this.graphics) return;
         const g = this.graphics;
-        g.lineWidth = 6;
-        g.strokeColor = new Color(74, 255, 106, 255);
-        for (const seg of this.dashSegs) {
-            if (seg.end <= fromDist) continue;
-            const a = seg.start < fromDist ? this.pointAtDist(fromDist) : seg.a;
-            const len = Vec3.distance(a, seg.b);
-            if (len < 0.5) continue;
-            g.moveTo(a.x, a.y);
-            g.lineTo(seg.b.x, seg.b.y);
-            g.stroke();
+        g.fillColor = new Color(74, 255, 106, 255);//
+        for (const dot of this.pathDots) {
+            if (dot.dist <= fromDist) continue;
+            g.circle(dot.point.x, dot.point.y, this.dotRadius);
+            g.fill();
         }
     }
 
-    /** 预计算虚线分段：里程锚定在路径起点，角色移动不会改变虚线位置 */
-    private buildDashes(): void {
-        this.dashSegs = [];
+    /** 预计算路径点：里程锚定在路径起点，角色移动不会改变点的位置 */
+    private buildPathDots(): void {
+        this.pathDots = [];
         if (this.cachedPts.length < 2) return;
         const segs: Array<{ a: Vec3; b: Vec3; len: number }> = [];
         let total = 0;
@@ -112,18 +115,17 @@ export class PathLine extends Component {
             }
         }
         if (total <= 0) return;
-        const dash = 14;
-        const gap = 9;
-        let pos = 0;
+
+        const targetGap = this.targetRadius + this.dotRadius + this.targetDotGap;
+        const lastDotDist = Math.max(0, total - targetGap);
+        let pos = Math.min(this.firstDotOffset, lastDotDist);
         while (pos < total) {
-            const end = Math.min(pos + dash, total);
-            this.dashSegs.push({
-                a: this.pointAt(segs, pos),
-                b: this.pointAt(segs, end),
-                start: pos,
-                end,
+            if (pos > lastDotDist) break;
+            this.pathDots.push({
+                point: this.pointAt(segs, pos),
+                dist: pos,
             });
-            pos += dash + gap;
+            pos += this.dotSpacing;
         }
     }
 
@@ -220,12 +222,9 @@ export class PathLine extends Component {
 
     private drawTargetCircle(g: Graphics): void {
         if (!this.target) return;
-        g.fillColor = new Color(74, 255, 106, 90);
-        g.circle(this.target.x, this.target.y, 12);//圆圈半径 之前是16
-        g.fill();
-        g.lineWidth = 3;
-        g.strokeColor = new Color(74, 255, 106, 255);
-        g.circle(this.target.x, this.target.y, 12);
+        g.lineWidth = 4;
+        g.strokeColor = new Color(74, 255, 106, 255);//255, 255, 255, 255
+        g.circle(this.target.x, this.target.y, this.targetRadius);
         g.stroke();
     }
 }

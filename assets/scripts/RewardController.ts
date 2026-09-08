@@ -9,6 +9,8 @@ export class RewardController {
     private onPowerTick: (() => void) | null = null;
     private pendingPowerGain = 0;
     private powerGainAnimating = false;
+    private powerGainStart = 0;
+    private powerGainTarget = 0;
 
     constructor(
         private readonly owner: Component,
@@ -108,6 +110,19 @@ export class RewardController {
         this.playNextPowerGain();
     }
 
+    /** 宝箱立即更新显示值；若怪物奖励正在滚动，同时修正动画区间，避免下一帧覆盖。 */
+    applyImmediateDisplayedPowerGain(gain: number): void {
+        if (gain <= 0) return;
+        const player = this.getPlayer();
+        if (!player) return;
+
+        player.setDisplayedPower(player.getDisplayedPower() + gain);
+        if (this.powerGainAnimating) {
+            this.powerGainStart += gain;
+            this.powerGainTarget += gain;
+        }
+    }
+
     /** 失败流程保留角色三段下降，但怪物数字始终保持原值。 */
     startPlayerPowerLossTick(): void {
         const player = this.getPlayer();
@@ -159,8 +174,8 @@ export class RewardController {
         const gain = this.pendingPowerGain;
         this.pendingPowerGain = 0;
         this.powerGainAnimating = true;
-        const startPlayerPower = player.getDisplayedPower();
-        const targetPower = startPlayerPower + gain;
+        this.powerGainStart = player.getDisplayedPower();
+        this.powerGainTarget = this.powerGainStart + gain;
         const steps = 10;
         let step = 0;
 
@@ -169,8 +184,8 @@ export class RewardController {
             const currentPlayer = this.getPlayer();
             if (!currentPlayer) return;
             const displayedPower = step >= steps
-                ? targetPower
-                : startPlayerPower + Math.round(gain * step / steps);
+                ? this.powerGainTarget
+                : this.powerGainStart + Math.round(gain * step / steps);
             currentPlayer.setDisplayedPower(displayedPower);
             if (step >= steps) {
                 this.owner.unschedule(this.onPowerTick!);

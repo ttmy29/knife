@@ -596,7 +596,7 @@
     "_isBold": true,
     "_isUnderline": false,
     "_underlineHeight": 2,
-    "_cacheMode": 0,
+    "_cacheMode": 1,
     "_enableOutline": true,
     "_outlineColor": {
       "__type__": "cc.Color",
@@ -679,7 +679,7 @@
     "__prefab": {
       "__id__": 29
     },
-    "footprintScale": 0.8,
+    "footprintScale": 1,
     "_id": ""
   },
   {

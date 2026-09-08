@@ -244,7 +244,7 @@
     },
     "_lscale": {
       "__type__": "cc.Vec3",
-      "x": -1,
+      "x": 1,
       "y": 1,
       "z": 1
     },
@@ -596,7 +596,7 @@
     "_isBold": true,
     "_isUnderline": false,
     "_underlineHeight": 2,
-    "_cacheMode": 0,
+    "_cacheMode": 1,
     "_enableOutline": true,
     "_outlineColor": {
       "__type__": "cc.Color",
@@ -654,7 +654,7 @@
     "_contentSize": {
       "__type__": "cc.Size",
       "width": 201,
-      "height": 93
+      "height": 130
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",

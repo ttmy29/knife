@@ -25,6 +25,7 @@ import { AudioManager } from './core/AudioManager';
 import { PrefabManager } from './core/PrefabManager';
 import { AttackAudioType } from './config/ResourceConfig';
 import { MonsterSpawnConfig } from './config/MonsterConfig';
+import { BaseRoleSpecialBattleConfig } from './config/PlayerRoleConfig';
 
 const { ccclass, property } = _decorator;
 
@@ -121,6 +122,7 @@ export class GameManager extends Component {
             () => this.grid,
             () => this.player,
             () => this.pathLine?.clear(),
+            (gain) => this.rewards?.applyImmediateDisplayedPowerGain(gain),
             (roleType) => this.playerRoles?.switchPlayerRole(this.player, roleType),
             (player, roleType, playIntro) => this.playerRoles?.applyPlayerRoleProfile(player, roleType, playIntro),
             (node, openingActive) => this.monsterGuide?.requestStartForNode(node, openingActive),
@@ -128,6 +130,7 @@ export class GameManager extends Component {
         );
         this.buildPathLine();
         this.monsterController.setupRenderLayers();
+        this.chests.setupRenderLayers();
         this.buildUI();
         this.playerInput = new PlayerInputController(
             this.node,
@@ -325,6 +328,21 @@ export class GameManager extends Component {
         if (this.pathLine) this.pathLine.clear();
         this.player.faceToWorldX(monster.node.worldPosition.x);
         monster.faceToWorldX(this.player.node.worldPosition.x);
+        const useAttack3 = this.playerRoles?.getCurrentPrefabRoleType() === 'role'
+            && BaseRoleSpecialBattleConfig.targetMonsterNames.some(name => name === monster.node.name);
+        const playPlayerAttack = (onComplete?: () => void, onImpact?: () => void): void => {
+            if (!this.player) return;
+            if (useAttack3) {
+                this.player.playAttackAnimation(
+                    BaseRoleSpecialBattleConfig.attackAnimation,
+                    onComplete,
+                    onImpact,
+                    undefined,
+                    BaseRoleSpecialBattleConfig.attackSoundDelay,
+                    BaseRoleSpecialBattleConfig.attackImpactDelay,
+                );
+            } else this.player.playAttack(onComplete, onImpact);
+        };
         const win = this.player.power > monster.power;
         const rewardPower = monster.power;
         const finalMonster = this.monsterController?.getFinalMonster();
@@ -365,7 +383,7 @@ export class GameManager extends Component {
                     () => {},
                 );
             } else {
-                this.player.playAttack(() => {
+                playPlayerAttack(() => {
                     finishWin();
                     this.battling = false;
                 }, finishWin);
@@ -373,7 +391,7 @@ export class GameManager extends Component {
             }
         } else {
             this.rewards?.startPlayerPowerLossTick();
-            this.player.playAttack();
+            playPlayerAttack();
             monster.playAttack();
             this.scheduleOnce(() => {
                 if (!this.player) return;

@@ -1,4 +1,4 @@
-import { _decorator, Component, Label, Vec2, Vec3, UITransform } from 'cc';
+import { _decorator, Component, Label, Node, Vec2, Vec3, UITransform } from 'cc';
 import { Grid } from './Grid';
 
 const { ccclass, property } = _decorator;
@@ -23,16 +23,44 @@ export class Chest extends Component {
     public cells: Vec2[] = [];
 
     private grid: Grid | null = null;
+    private powerLabel: Label | null = null;
+    private externalColorNode: Node | null = null;
+    private externalLabelNode: Node | null = null;
 
     init(grid: Grid): void {
         this.grid = grid;
         const label = this.node.getComponentInChildren(Label);
         if (label) {
+            this.powerLabel = label;
             const parsed = parseInt(label.string, 10);
             if (!isNaN(parsed) && parsed > 0) this.power = parsed;
         }
         this.computeCells();
         grid.addChest(this);
+    }
+
+    /** 将战力底图和数字移入连续渲染层，宝箱根节点只保留本体。 */
+    movePresentationToLayers(colorLayer: Node, labelLayer: Node): boolean {
+        const colorNode = this.node.getChildByName('bule');
+        const labelNode = this.powerLabel ? this.powerLabel.node : null;
+        if (!colorNode || !colorNode.isValid || !labelNode || !labelNode.isValid) return false;
+
+        colorNode.name = `${this.node.name}Color`;
+        labelNode.name = `${this.node.name}Label`;
+        colorNode.setParent(colorLayer, true);
+        labelNode.setParent(labelLayer, true);
+        this.externalColorNode = colorNode;
+        this.externalLabelNode = labelNode;
+        return true;
+    }
+
+    setPresentationActive(active: boolean): void {
+        if (this.externalColorNode && this.externalColorNode.isValid) {
+            this.externalColorNode.active = active;
+        }
+        if (this.externalLabelNode && this.externalLabelNode.isValid) {
+            this.externalLabelNode.active = active;
+        }
     }
 
     isEquipment(): boolean {
@@ -119,5 +147,7 @@ export class Chest extends Component {
 
     onDestroy(): void {
         if (this.grid) this.grid.removeChest(this);
+        if (this.externalColorNode && this.externalColorNode.isValid) this.externalColorNode.destroy();
+        if (this.externalLabelNode && this.externalLabelNode.isValid) this.externalLabelNode.destroy();
     }
 }

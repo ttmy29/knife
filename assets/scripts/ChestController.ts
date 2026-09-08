@@ -19,17 +19,34 @@ interface EquipmentSpawnConfig {
 
 export class ChestController {
     private powerSuitChest: Chest | null = null;
+    private colorLayer: Node | null = null;
+    private labelLayer: Node | null = null;
 
     constructor(
         private readonly worldNode: Node,
         private readonly getGrid: () => Grid | null,
         private readonly getPlayer: () => Player | null,
         private readonly clearPathLine: () => void,
+        private readonly applyImmediateDisplayedPowerGain: (gain: number) => void,
         private readonly switchPlayerRole: (roleType: RewardRoleType) => void,
         private readonly applyPlayerRoleProfile: (player: Player, roleType: PlayerRoleType, playIntro?: boolean) => void,
         private readonly requestGuideStartForNode: (node: Node, openingActive: boolean) => void,
         private readonly isOpeningSequenceActive: () => boolean,
     ) {}
+
+    setupRenderLayers(): void {
+        const boxLayer = this.worldNode.getChildByName('boxLayer');
+        this.colorLayer = this.worldNode.getChildByName('BoxColor');
+        this.labelLayer = this.worldNode.getChildByName('BoxLabel');
+        if (!boxLayer || !this.colorLayer || !this.labelLayer) {
+            console.warn('[ChestController] boxLayer, BoxColor or BoxLabel layer is missing');
+            return;
+        }
+
+        // 本体先画，所有底图连续绘制，最后连续绘制数字。
+        this.colorLayer.setSiblingIndex(boxLayer.getSiblingIndex() + 1);
+        this.labelLayer.setSiblingIndex(this.colorLayer.getSiblingIndex() + 1);
+    }
 
     /** 启动时从 baoxiang bundle 加载初始宝箱。 */
     async spawnInitialChest(): Promise<void> {
@@ -50,6 +67,7 @@ export class ChestController {
 
             const chest = box.getComponent(Chest) || box.addComponent(Chest);
             chest.init(grid);
+            this.movePresentationToLayers(chest);
         } catch (err) {
             console.error('[ChestController] load box prefab failed', err);
         }
@@ -80,7 +98,10 @@ export class ChestController {
                 }
 
                 const chest = node.getComponent(Chest) || node.getComponentInChildren(Chest) || node.addComponent(Chest);
-                if (chest) chest.init(grid);
+                if (chest) {
+                    chest.init(grid);
+                    this.movePresentationToLayers(chest);
+                }
             } catch (err) {
                 console.error(`[ChestController] load equipment prefab failed: ${item.name}`, err);
             }
@@ -145,6 +166,7 @@ export class ChestController {
                 return;
             }
             chest.init(grid);
+            this.movePresentationToLayers(chest);
             this.powerSuitChest = chest;
         } catch (err) {
             console.error('[ChestController] load power suit prefab failed', err);
@@ -158,10 +180,11 @@ export class ChestController {
 
         this.clearPathLine();
         player.power += chest.power;
-        player.setDisplayedPower(player.getDisplayedPower() + chest.power);
+        this.applyImmediateDisplayedPowerGain(chest.power);
 
         const grid = this.getGrid();
         if (grid) grid.removeChest(chest);
+        chest.setPresentationActive(false);
         if (chest.node) chest.node.active = false;
 
         AudioManager.playLevelUp();
@@ -217,6 +240,13 @@ export class ChestController {
             player.activateMount();
         }
         AudioManager.playCheer();
+    }
+
+    private movePresentationToLayers(chest: Chest): void {
+        if (!this.colorLayer || !this.labelLayer) return;
+        if (!chest.movePresentationToLayers(this.colorLayer, this.labelLayer)) {
+            console.warn(`[ChestController] split chest presentation failed: ${chest.node.name}`);
+        }
     }
 
     private getEquipmentRoot(spineNode: Node): Node {

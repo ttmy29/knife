@@ -338,6 +338,7 @@ export class Player extends Component {
         onImpact?: () => void,
         onSound?: () => void,
         soundDelay: number = this.attackSoundDelay,
+        impactDelay: number = this.attackImpactDelay,
     ): void {
         this.playAnim(animation, false);
         this.playAttackEffect(animation);
@@ -353,7 +354,7 @@ export class Player extends Component {
             impacted = true;
             if (onImpact) onImpact();
         };
-        if (onImpact) this.scheduleOnce(triggerImpact, this.attackImpactDelay);
+        if (onImpact) this.scheduleOnce(triggerImpact, Math.max(0, impactDelay));
         this.onceAnimComplete(() => {
             if (onImpact) {
                 this.unschedule(triggerImpact);

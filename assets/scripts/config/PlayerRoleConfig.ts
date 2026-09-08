@@ -20,11 +20,20 @@ export interface PlayerRoleProfile {
     attackImpactDelay: number;
 }
 
+export const BaseRoleSpecialBattleConfig = {
+    targetMonsterNames: ['monster10', 'monster11'],
+    attackAnimation: 'phyattack3',
+    /** 普通速度下，攻击开始后多久播放音效。 */
+    attackSoundDelay: 0.8,
+    /** 普通速度下，攻击开始后多久判定命中并让怪物死亡。 */
+    attackImpactDelay: 0.9,
+};
+
 export const PlayerRoleProfiles: Record<PlayerRoleType, PlayerRoleProfile> = {
     role: {
         upgradeEffectAnimation: 'sj',
         normalMonsterBattleDistance: 60,
-        bossMonsterBattleDistance: 90,
+        bossMonsterBattleDistance: 100,
         attackAnimation: 'phyattack1',
         attackSound: 'attack1',
         attackSoundDelay: 0.2,
@@ -56,7 +65,7 @@ export const PlayerRoleProfiles: Record<PlayerRoleType, PlayerRoleProfile> = {
         introAnimation: 'skill1',
         upgradeEffectAnimation: 'sj',
         normalMonsterBattleDistance: 70,
-        bossMonsterBattleDistance: 90,
+        bossMonsterBattleDistance: 100,
         attackAnimation: 'phyattack1',
         bossAttackAnimations: ['phyattack4', 'phyattack3'],
         attackSound: 'attack1',
