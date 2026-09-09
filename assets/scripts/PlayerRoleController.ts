@@ -25,7 +25,6 @@ export class PlayerRoleController {
         private readonly setPlayer: (player: Player) => void,
         private readonly getPlayerSpawnLocalPosition: () => Vec3,
         private readonly assignCameraTarget: () => void,
-        private readonly tryMoveOpeningCameraToPlayer: () => void,
     ) {}
 
     getCurrentProfile(): PlayerRoleProfile {
@@ -68,7 +67,6 @@ export class PlayerRoleController {
         this.applyPlayerRoleProfile(player, 'role', false);
         this.setPlayer(player);
         this.assignCameraTarget();
-        this.tryMoveOpeningCameraToPlayer();
     }
 
     /** 把当前角色替换成指定形态：位置、战力、朝向保留。 */
@@ -109,7 +107,6 @@ export class PlayerRoleController {
         this.applyPlayerRoleProfile(player, roleType);
         this.setPlayer(player);
         this.assignCameraTarget();
-        this.tryMoveOpeningCameraToPlayer();
         AudioManager.playCheer();
     }
 

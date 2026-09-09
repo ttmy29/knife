@@ -312,18 +312,56 @@ export class Player extends Component {
     }
 
     /** 形态切换入场动画：播放一次后回到 idle。 */
-    playSkillOnce(name = 'skill1'): void {
+    playSkillOnce(name = 'skill1', onComplete?: () => void): void {
         this.animName = '';
         this.playAnim(name, false);
         this.onceAnimComplete(() => {
             if (this.dead) return;
             if (this.moving) this.playRun();
             else this.playIdle();
+            if (onComplete) onComplete();
         });
     }
 
     playRun(): void {
         this.playAnim('run', true);
+    }
+
+    /** 把指定动画缩放到目标时长播放，结束后恢复动画速度并继续后续演出。 */
+    playAnimationOverDuration(name: string, duration: number, onComplete?: () => void): void {
+        this.animName = '';
+        this.playAnim(name, false);
+        const targetDuration = Math.max(0, duration);
+        const restoreTimeScale = this.animationTimeScale;
+        if (targetDuration > 0) {
+            for (const skeleton of this.currentAnimSkeletons) {
+                const nativeDuration = this.getSkeletonAnimationDuration(skeleton, name);
+                if (nativeDuration > 0) skeleton.timeScale = nativeDuration / targetDuration;
+            }
+        }
+        this.scheduleOnce(() => {
+            if (this.dead) return;
+            this.setAnimationTimeScale(restoreTimeScale);
+            if (onComplete) onComplete();
+        }, targetDuration);
+    }
+
+    private getSkeletonAnimationDuration(skeleton: sp.Skeleton, name: string): number {
+        const runtimeSkeleton = skeleton as unknown as {
+            findAnimation?: (animationName: string) => { duration?: number } | null;
+            skeletonData?: {
+                getRuntimeData?: () => {
+                    animations?: Array<{ name?: string; duration?: number }>;
+                };
+            } | null;
+        };
+        const directDuration = runtimeSkeleton.findAnimation?.(name)?.duration;
+        const runtimeAnimation = runtimeSkeleton.skeletonData
+            ?.getRuntimeData?.()
+            .animations
+            ?.find(animation => animation.name === name);
+        const duration = directDuration ?? runtimeAnimation?.duration;
+        return typeof duration === 'number' && isFinite(duration) ? Math.max(0, duration) : 0;
     }
 
     /** 音效、命中与动画结束分别回调，供不同战斗表现选择对应时机。 */

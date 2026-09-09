@@ -314,6 +314,11 @@ export class Monster extends Component {
         this.onceAnimComplete(onComplete);
     }
 
+    /** 开场演出使用：攻击一次，结束后恢复待机。 */
+    playAttackThenIdle(onComplete?: () => void): void {
+        this.playOnceThenIdle(this.attackAnimation, onComplete);
+    }
+
     playAttackLoop(): void {
         this.animName = '';
         this.playAnim(this.attackAnimation, true);

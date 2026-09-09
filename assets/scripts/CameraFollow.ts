@@ -48,7 +48,12 @@ export class CameraFollow extends Component {
     }
 
     /** 从当前位置缓慢移动到目标，移动期间暂停普通跟随。 */
-    moveToWorldPosition(worldPos: Vec3, duration: number, onComplete?: () => void): void {
+    moveToWorldPosition(
+        worldPos: Vec3,
+        duration: number,
+        onComplete?: () => void,
+        destinationOrthoHeight?: number,
+    ): void {
         const parent = this.node.parent;
         const ut = parent ? parent.getComponent(UITransform) : null;
         if (!ut) {
@@ -58,7 +63,8 @@ export class CameraFollow extends Component {
 
         this.bounds = this.getBounds();
         const aimWorld = new Vec3(worldPos.x + this.targetOffsetX, worldPos.y + this.targetOffsetY, worldPos.z);
-        this.clampAim(aimWorld);
+        // 镜头同时缩放时，按缩放完成后的视野计算终点，避免恢复跟随后再补一次位置。
+        this.clampAim(aimWorld, destinationOrthoHeight);
         const local = ut.convertToNodeSpaceAR(aimWorld);
         const destination = new Vec3(local.x, local.y, this.node.position.z);
 
@@ -136,10 +142,12 @@ export class CameraFollow extends Component {
      * 半高取相机 orthoHeight，半宽 = 半高 x 屏幕宽高比；
      * 若某个方向可视范围比地图还大，则直接居中，避免露出地图外。
      */
-    private clampAim(aim: Vec3): void {
+    private clampAim(aim: Vec3, orthoHeight?: number): void {
         if (!this.bounds) return;
         const camComp = this.node.getComponent(Camera);
-        const halfH = camComp ? camComp.orthoHeight : 0;
+        const halfH = orthoHeight !== undefined
+            ? orthoHeight
+            : (camComp ? camComp.orthoHeight : 0);
         if (halfH <= 0) return;
         const visible = view.getVisibleSize();
         const aspect = visible.height > 0 ? visible.width / visible.height : 1;

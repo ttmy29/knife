@@ -24,7 +24,6 @@ import { Level1 } from './GameConfig';
 import { AudioManager } from './core/AudioManager';
 import { PrefabManager } from './core/PrefabManager';
 import { AttackAudioType } from './config/ResourceConfig';
-import { MonsterSpawnConfig } from './config/MonsterConfig';
 import { BaseRoleSpecialBattleConfig } from './config/PlayerRoleConfig';
 
 const { ccclass, property } = _decorator;
@@ -89,7 +88,6 @@ export class GameManager extends Component {
         this.grid = this.getComponent(Grid) || this.addComponent(Grid);
         this.grid.init(Level1);
         this.openingSequence = new OpeningSequenceController(
-            this,
             this.node,
             () => this.grid,
             () => this.camera,
@@ -102,7 +100,7 @@ export class GameManager extends Component {
             },
         );
         this.openingSequence.init();
-        this.openingSequence.alignCameraToOpeningTarget();
+        this.openingSequence.prepareCameraForOpening();
         this.bakeWallRegions();
 
         this.buildGround();
@@ -111,9 +109,8 @@ export class GameManager extends Component {
             () => this.grid,
             (player) => this.bindPlayerEvents(player),
             (player) => { this.player = player; },
-            () => this.getPlayerSpawnLocalPosition(),
+            () => this.openingSequence?.getPlayerInitialLocalPosition() || this.getPlayerSpawnLocalPosition(),
             () => this.assignCameraTarget(),
-            () => this.openingSequence?.tryMoveCameraToPlayer(),
         );
         this.rewards = new RewardController(this, this.node, () => this.player);
         this.rewards.init();
@@ -154,6 +151,7 @@ export class GameManager extends Component {
 
     onDestroy(): void {
         this.finalBossCinematic?.restoreAll();
+        this.openingSequence?.destroy();
         this.monsterGuide?.destroy();
         this.monsterGlow?.hide();
         this.targetHint?.hide();
@@ -254,10 +252,7 @@ export class GameManager extends Component {
         const monster = this.monsterController?.getOpeningMonster()
             || this.monsterController?.getFinalMonster();
         if (monster && monster.node && monster.node.isValid) {
-            monster.playSpawnFade(MonsterSpawnConfig.fadeDuration, () => {
-                monster.activateOnGrid();
-                this.openingSequence?.start(monster);
-            });
+            this.openingSequence.start(monster);
             return;
         }
         this.openingSequence?.deactivate();
