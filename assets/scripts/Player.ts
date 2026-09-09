@@ -11,7 +11,7 @@ export interface PlayerEvents {
     onArrive: (blockMonster: Monster | null) => void;
     /** 兜底：直接与怪物开战 */
     onBattle: (monster: Monster) => void;
-    /** 触发宝箱逻辑：普通宝箱在攻击动画后触发，装备拾取会直接触发 */
+    /** 触发宝箱逻辑：所有宝箱和装备均在接触时直接触发 */
     onChest: (chest: Chest) => void;
     /** 角色攻击动画开始时播放音效 */
     onAttack?: (sound: AttackAudioType) => void;
@@ -26,7 +26,7 @@ export class Player extends Component {
     private displayedPower = 4407;
 
     @property
-    public moveSpeed = 280;
+    public moveSpeed = 350;//280
 
     @property
     public attackStopPadding = 0;//之前20
@@ -610,17 +610,9 @@ export class Player extends Component {
                 if (occ.monster) {
                     if (this.events && this.events.onBattle) this.events.onBattle(occ.monster);
                 } else if (occ.chest) {
-                    if (occ.chest.isEquipment()) {
-                        this.playIdle();
-                        if (this.events && this.events.onChest) this.events.onChest(occ.chest);
-                        return;
-                    }
-                    // 宝箱：攻击动画播完才开箱
-                    this.interacting = true;
-                    this.playAttack(() => {
-                        this.interacting = false;
-                        if (this.events && this.events.onChest && occ.chest) this.events.onChest(occ.chest);
-                    });
+                    this.playIdle();
+                    if (this.events && this.events.onChest) this.events.onChest(occ.chest);
+                    return;
                 }
             } else {
                 if (ex > 0) this.setFacing(1);

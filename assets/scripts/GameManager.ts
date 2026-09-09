@@ -38,6 +38,9 @@ export class GameManager extends Component {
     @property({ type: Node })
     public finalBossMaskNode: Node | null = null;
 
+    @property({ tooltip: 'Canvas/Camera 的基础正交高度；数值越大，主画面显示范围越大。' })
+    public baseCameraOrthoHeight = 900;
+
     private grid: Grid | null = null;
     private player: Player | null = null;
     private pathLine: PathLine | null = null;
@@ -61,10 +64,12 @@ export class GameManager extends Component {
     onLoad(): void {
         AudioManager.init(this.node);
         AudioManager.playBgm();
+        AudioManager.playRoar();
 
         const canvas = this.node.parent;
         this.camera = canvas ? canvas.getComponentInChildren(Camera) : null;
         this.hintCamera = canvas ? canvas.getChildByName('Camera-001')?.getComponent(Camera) || null : null;
+        if (this.camera) this.camera.orthoHeight = this.baseCameraOrthoHeight;
         this.monsterGlow = new MonsterGlowController(this, this.node);
         this.monsterGlow.init();
         this.monsterGuide = new MonsterGuideController();
@@ -108,7 +113,10 @@ export class GameManager extends Component {
             this.node,
             () => this.grid,
             (player) => this.bindPlayerEvents(player),
-            (player) => { this.player = player; },
+            (player) => {
+                this.player = player;
+                this.openingSequence?.preparePlayerForOpening(player);
+            },
             () => this.openingSequence?.getPlayerInitialLocalPosition() || this.getPlayerSpawnLocalPosition(),
             () => this.assignCameraTarget(),
         );
@@ -239,7 +247,13 @@ export class GameManager extends Component {
                 this.chests ? this.chests.spawnEquipmentItems() : Promise.resolve(),
                 AudioManager.preloadFinalBossSounds(),
                 AudioManager.preloadRoleDie(),
-                this.openingSequence?.active ? AudioManager.preloadShout() : Promise.resolve(),
+                this.openingSequence?.active
+                    ? Promise.all([
+                        AudioManager.preloadHelpSounds(),
+                        AudioManager.preloadShout(),
+                        AudioManager.preloadRoleBehit(),
+                    ])
+                    : Promise.resolve(),
             ]);
         } catch (err) {
             console.error('[GameManager] opening scene load failed', err);
@@ -341,7 +355,10 @@ export class GameManager extends Component {
         const win = this.player.power > monster.power;
         const rewardPower = monster.power;
         const finalMonster = this.monsterController?.getFinalMonster();
-        if (monster === finalMonster) this.targetHint?.hide();
+        if (monster === finalMonster) {
+            this.openingSequence?.stopHelpSounds();
+            this.targetHint?.hide();
+        }
         let monsterHidden = false;
         const hideMonster = () => {
             if (monsterHidden) return;

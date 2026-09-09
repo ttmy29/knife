@@ -1,8 +1,16 @@
 export interface OpeningSequenceProfile {
     /** 开场执行攻击动作的怪物名称。 */
     targetMonsterName: string;
+    /** 开场怪物开始攻击后，延迟播放角色受击音效的时间（秒）。 */
+    playerHitSoundDelay: number;
+    /** 角色落地后第一次播放 Help1 的延迟（秒）。 */
+    firstHelpSoundDelay: number;
+    /** 第一次播放后，Help1、Help2 交替播放的固定间隔（秒）。 */
+    helpSoundInterval: number;
     /** 资源加载期间的相机正交高度倍率。 */
     initialCameraOrthoScale: number;
+    /** 资源加载期间，相机初始位置向上的偏移量。 */
+    initialCameraOffsetY: number;
     /** 所有资源实例化后，镜头移动到角色所需时间（秒）。 */
     cameraMoveDuration: number;
     /** 镜头到位后，从扩大视野恢复到正常视野所需时间（秒）。 */
@@ -11,6 +19,8 @@ export interface OpeningSequenceProfile {
     cameraTargetOffsetX: number;
     /** 角色开场翻滚的起点（GameWorld 本地坐标）。 */
     playerRollStart: { x: number; y: number };
+    /** 角色位于开场临时点时显示的战力文本，仅影响 Label。 */
+    temporaryPlayerLabelText: string;
     /** 二次贝塞尔曲线控制点（GameWorld 本地坐标）。 */
     playerRollControl: { x: number; y: number };
     /** 角色翻滚到正式出生点所需时间（秒）。 */
@@ -29,11 +39,16 @@ export interface OpeningSequenceProfile {
 
 export const OpeningSequenceConfig: OpeningSequenceProfile = {
     targetMonsterName: 'monster1',
-    initialCameraOrthoScale: 1.3,
+    playerHitSoundDelay: 1,
+    firstHelpSoundDelay: 5,
+    helpSoundInterval: 6,
+    initialCameraOrthoScale: 1.5,
+    initialCameraOffsetY: 100,
     cameraMoveDuration: 0.5,
     cameraZoomDuration: 0.3,
     cameraTargetOffsetX: -100,
     playerRollStart: { x: -120, y: 510 },
+    temporaryPlayerLabelText: '1888',
     playerRollControl: { x: 650, y: 510 },
     playerRollDuration: 1,
     playerRollTurns: 15,

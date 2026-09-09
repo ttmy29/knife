@@ -50,6 +50,9 @@ export class PlayerRoleController {
             node = this.createPlaceholder(Level1.tileSize * 0.6, new Color(90, 200, 255, 255));
             node.name = 'PlayerPlaceholder';
         }
+        // 初始配置完成前不进入渲染，避免预制体 Label 短暂显示一帧旧数值。
+        const initiallyActive = node.active;
+        node.active = false;
         container.addChild(node);
 
         const player = node.addComponent(Player);
@@ -66,6 +69,7 @@ export class PlayerRoleController {
         this.prefabRoleType = 'role';
         this.applyPlayerRoleProfile(player, 'role', false);
         this.setPlayer(player);
+        node.active = initiallyActive;
         this.assignCameraTarget();
     }
 

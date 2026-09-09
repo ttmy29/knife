@@ -64,7 +64,7 @@ export const PlayerRoleProfiles: Record<PlayerRoleType, PlayerRoleProfile> = {
     role3: {
         introAnimation: 'skill1',
         upgradeEffectAnimation: 'sj',
-        normalMonsterBattleDistance: 70,
+        normalMonsterBattleDistance: 80,
         bossMonsterBattleDistance: 100,
         attackAnimation: 'phyattack1',
         bossAttackAnimations: ['phyattack4', 'phyattack3'],

@@ -200,5 +200,9 @@ export const ResourcePath = {
         LevelUp: 'music/levelUp',
         Fail: 'music/fail',
         Victory: 'music/victroy',
+        RoleBehit:'music/RoleBehit',
+        Help1: 'music/Help1',
+        Help2: 'music/Help2',
+        Roar: 'music/Roar',
     },
 };

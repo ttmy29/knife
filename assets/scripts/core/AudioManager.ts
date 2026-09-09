@@ -46,6 +46,33 @@ export class AudioManager {
         void this.playSfxByPath(ResourcePath.Audio.RoleDie);
     }
 
+    static async preloadRoleBehit(): Promise<void> {
+        await this.loadMusicClip(ResourcePath.Audio.RoleBehit);
+    }
+
+    static playRoleBehit(): void {
+        void this.playSfxByPath(ResourcePath.Audio.RoleBehit);
+    }
+
+    static async preloadHelpSounds(): Promise<void> {
+        await Promise.all([
+            this.loadMusicClip(ResourcePath.Audio.Help1),
+            this.loadMusicClip(ResourcePath.Audio.Help2),
+        ]);
+    }
+
+    static playRoar(): void {
+        void this.playSfxByPath(ResourcePath.Audio.Roar);
+    }
+
+    static playHelp1(): void {
+        void this.playSfxByPath(ResourcePath.Audio.Help1);
+    }
+
+    static playHelp2(): void {
+        void this.playSfxByPath(ResourcePath.Audio.Help2);
+    }
+
     static async preloadFinalBossSounds(): Promise<void> {
         await Promise.all([
             this.loadMusicClip(ResourcePath.Audio.HeHa),

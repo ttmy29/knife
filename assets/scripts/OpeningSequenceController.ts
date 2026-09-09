@@ -1,4 +1,4 @@
-import { Camera, Node, tween, Tween, UIOpacity, UITransform, Vec3 } from 'cc';
+import { Camera, Label, Node, tween, Tween, UIOpacity, UITransform, Vec3 } from 'cc';
 import { CameraFollow } from './CameraFollow';
 import { Grid } from './Grid';
 import { Monster } from './Monster';
@@ -11,6 +11,10 @@ interface RollProgress {
     value: number;
 }
 
+interface SoundDelayProgress {
+    elapsed: number;
+}
+
 export class OpeningSequenceController {
     private static shownOnce = false;
 
@@ -19,7 +23,12 @@ export class OpeningSequenceController {
     private originalCameraOrthoHeight: number | null = null;
     private originalCameraOffsetX: number | null = null;
     private rollProgress: RollProgress | null = null;
+    private playerHitSoundDelay: SoundDelayProgress | null = null;
+    private helpSoundDelay: SoundDelayProgress | null = null;
+    private helpSoundIndex = 0;
+    private helpSoundsStopped = false;
     private monsterLayerInitialSiblingIndex: number | null = null;
+    private originalPlayerLabelText: string | null = null;
 
     constructor(
         private readonly worldNode: Node,
@@ -36,11 +45,28 @@ export class OpeningSequenceController {
         this.introStarted = false;
         this.originalCameraOrthoHeight = null;
         this.originalCameraOffsetX = null;
+        this.originalPlayerLabelText = null;
         this.stopRollTween();
+        this.stopPlayerHitSoundDelay();
+        this.stopHelpSoundDelay();
+        this.helpSoundIndex = 0;
+        this.helpSoundsStopped = false;
     }
 
     get active(): boolean {
         return this.activeState;
+    }
+
+    /** 进入最终 Boss 战后永久停止本局的 Help 语音循环。 */
+    stopHelpSounds(): void {
+        this.helpSoundsStopped = true;
+        this.stopHelpSoundDelay();
+    }
+
+    /** 角色实例化到开场临时点后，立即应用临时显示文本。 */
+    preparePlayerForOpening(player: Player): void {
+        if (!this.activeState || !player.node.isValid) return;
+        this.showTemporaryPlayerLabel(player);
     }
 
     /** 开场启用时从临时位置实例化，正式出生点仍由 Level1 配置提供。 */
@@ -54,6 +80,8 @@ export class OpeningSequenceController {
         this.activeState = false;
         this.restoreCameraOrthoHeight();
         this.restoreCameraOffset();
+        this.restorePlayerLabel();
+        this.stopPlayerHitSoundDelay();
         const player = this.getPlayer();
         if (!player || !player.node.isValid) return;
         const target = this.getPlayerSpawnLocalPosition();
@@ -79,6 +107,12 @@ export class OpeningSequenceController {
         this.originalCameraOrthoHeight = camera.orthoHeight;
         camera.orthoHeight = this.originalCameraOrthoHeight
             * Math.max(0.01, OpeningSequenceConfig.initialCameraOrthoScale);
+        const cameraPosition = camera.node.position;
+        camera.node.setPosition(
+            cameraPosition.x,
+            cameraPosition.y + OpeningSequenceConfig.initialCameraOffsetY,
+            cameraPosition.z,
+        );
     }
 
     /** 所有资源完成实例化后，对准临时位置的角色并开始整段开场演出。 */
@@ -92,6 +126,7 @@ export class OpeningSequenceController {
 
         this.introStarted = true;
         OpeningSequenceController.shownOnce = true;
+        this.showTemporaryPlayerLabel(player);
         const camera = this.getCamera();
         let monsterReady = false;
         let cameraReady = !camera;
@@ -101,10 +136,18 @@ export class OpeningSequenceController {
             attackStarted = true;
             AudioManager.playShout();
             this.moveMonsterLayerAbovePlayer();
+            let rollStarted = false;
+            const startRoll = (): void => {
+                if (rollStarted) return;
+                rollStarted = true;
+                this.rollPlayerToSpawn();
+            };
             monster.playAttackThenIdle(() => {
                 this.restoreMonsterLayer();
-                this.rollPlayerToSpawn();
-            });
+                // 素材事件异常时在攻击结束处兜底，避免开场无法继续。
+                startRoll();
+            }, startRoll);
+            this.startPlayerHitSoundDelay();
         };
         monster.playSpawnFade(MonsterSpawnConfig.fadeDuration, () => {
             monster.activateOnGrid();
@@ -143,6 +186,7 @@ export class OpeningSequenceController {
                 ? camera.orthoHeight
                 : this.originalCameraOrthoHeight,
         );
+        AudioManager.playHelp2();
         this.zoomCameraToOriginal(() => {
             zoomReady = true;
             tryFinishCamera();
@@ -154,6 +198,9 @@ export class OpeningSequenceController {
         this.restoreCameraOrthoHeight();
         this.restoreCameraOffset();
         this.restoreMonsterLayer();
+        this.restorePlayerLabel();
+        this.stopPlayerHitSoundDelay();
+        this.stopHelpSoundDelay();
     }
 
     private rollPlayerToSpawn(): void {
@@ -206,9 +253,11 @@ export class OpeningSequenceController {
                 if (spineNode && spineNode.isValid) spineNode.angle = baseAngle;
                 if (spineOpacity && spineOpacity.isValid) spineOpacity.opacity = originalSpineOpacity;
                 if (blueNode && blueNode.isValid) blueNode.active = blueWasActive;
+                this.restorePlayerLabel();
                 if (labelNode && labelNode.isValid) labelNode.active = labelWasActive;
                 player.setAnimationTimeScale(1);
                 this.syncPlayerGridPosition(player, target);
+                this.startHelpSoundLoop();
                 player.playAnimationOverDuration(
                     OpeningSequenceConfig.playerLandingTransitionAnimation,
                     OpeningSequenceConfig.playerLandingTransitionDuration,
@@ -229,6 +278,25 @@ export class OpeningSequenceController {
         if (!cell) return;
         player.gridCol = cell.x;
         player.gridRow = cell.y;
+    }
+
+    private showTemporaryPlayerLabel(player: Player): void {
+        const label = player.node.getChildByName('Label')?.getComponent(Label) || null;
+        if (!label) return;
+        if (this.originalPlayerLabelText === null) {
+            this.originalPlayerLabelText = label.string;
+        }
+        label.string = OpeningSequenceConfig.temporaryPlayerLabelText;
+    }
+
+    private restorePlayerLabel(): void {
+        if (this.originalPlayerLabelText === null) return;
+        const player = this.getPlayer();
+        const label = player?.node.isValid
+            ? player.node.getChildByName('Label')?.getComponent(Label) || null
+            : null;
+        if (label) label.string = this.originalPlayerLabelText;
+        this.originalPlayerLabelText = null;
     }
 
     private finishOpening(): void {
@@ -326,5 +394,61 @@ export class OpeningSequenceController {
         if (!this.rollProgress) return;
         Tween.stopAllByTarget(this.rollProgress);
         this.rollProgress = null;
+    }
+
+    private startPlayerHitSoundDelay(): void {
+        this.stopPlayerHitSoundDelay();
+        const delay = Math.max(0, OpeningSequenceConfig.playerHitSoundDelay);
+        if (delay === 0) {
+            AudioManager.playRoleBehit();
+            return;
+        }
+
+        const progress: SoundDelayProgress = { elapsed: 0 };
+        this.playerHitSoundDelay = progress;
+        tween(progress)
+            .delay(delay)
+            .call(() => {
+                this.playerHitSoundDelay = null;
+                if (this.activeState) AudioManager.playRoleBehit();
+            })
+            .start();
+    }
+
+    private stopPlayerHitSoundDelay(): void {
+        if (!this.playerHitSoundDelay) return;
+        Tween.stopAllByTarget(this.playerHitSoundDelay);
+        this.playerHitSoundDelay = null;
+    }
+
+    private startHelpSoundLoop(): void {
+        this.stopHelpSoundDelay();
+        this.helpSoundIndex = 0;
+        this.helpSoundsStopped = false;
+        this.scheduleNextHelpSound(OpeningSequenceConfig.firstHelpSoundDelay);
+    }
+
+    private scheduleNextHelpSound(delay: number): void {
+        if (this.helpSoundsStopped) return;
+        const progress: SoundDelayProgress = { elapsed: 0 };
+        this.helpSoundDelay = progress;
+        tween(progress)
+            .delay(Math.max(0.01, delay))
+            .call(() => {
+                if (this.helpSoundDelay === progress) this.helpSoundDelay = null;
+                if (this.helpSoundsStopped) return;
+                const playHelp1 = this.helpSoundIndex % 2 === 0;
+                if (playHelp1) AudioManager.playHelp1();
+                else AudioManager.playHelp2();
+                this.helpSoundIndex++;
+                this.scheduleNextHelpSound(OpeningSequenceConfig.helpSoundInterval);
+            })
+            .start();
+    }
+
+    private stopHelpSoundDelay(): void {
+        if (!this.helpSoundDelay) return;
+        Tween.stopAllByTarget(this.helpSoundDelay);
+        this.helpSoundDelay = null;
     }
 }

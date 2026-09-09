@@ -5,7 +5,7 @@ const { ccclass, property } = _decorator;
 
 /**
  * 宝箱：放在 GameWorld/BoxLayer 下。
- * 角色碰到（走进拾取范围）停下播攻击动画，攻击播完开箱：+战力、宝箱消失、角色切换 role1。
+ * 角色碰到（走进拾取范围）后直接开箱：+战力、宝箱消失，并执行对应换装或角色切换。
  * 拾取范围优先按 icon 图片节点的 UITransform x 缩放计算；战力读子节点 Label 文本（不限战力都能拾取）。
  */
 @ccclass('Chest')

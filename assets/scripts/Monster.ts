@@ -314,9 +314,29 @@ export class Monster extends Component {
         this.onceAnimComplete(onComplete);
     }
 
-    /** 开场演出使用：攻击一次，结束后恢复待机。 */
-    playAttackThenIdle(onComplete?: () => void): void {
-        this.playOnceThenIdle(this.attackAnimation, onComplete);
+    /** 开场演出使用：攻击一次，命中事件触发反馈，结束后恢复待机。 */
+    playAttackThenIdle(onComplete?: () => void, onHit?: () => void): void {
+        let hitTriggered = false;
+        const clearEventListeners = (): void => {
+            for (const skeleton of this.skeletons) {
+                if (skeleton && skeleton.isValid) skeleton.setEventListener(() => {});
+            }
+        };
+        if (onHit) {
+            for (const skeleton of this.skeletons) {
+                if (!skeleton || !skeleton.isValid) continue;
+                skeleton.setEventListener((_entry, event) => {
+                    if (hitTriggered || typeof event === 'number' || event.data?.name !== 'event_hit') return;
+                    hitTriggered = true;
+                    clearEventListeners();
+                    onHit();
+                });
+            }
+        }
+        this.playOnceThenIdle(this.attackAnimation, () => {
+            clearEventListeners();
+            if (onComplete) onComplete();
+        });
     }
 
     playAttackLoop(): void {
