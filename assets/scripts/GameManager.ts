@@ -25,6 +25,7 @@ import { AudioManager } from './core/AudioManager';
 import { PrefabManager } from './core/PrefabManager';
 import { AttackAudioType } from './config/ResourceConfig';
 import { BaseRoleSpecialBattleConfig } from './config/PlayerRoleConfig';
+import { DodgeConfig } from './config/DodgeConfig';
 import { GameAssets } from './GameAssets';
 
 const { ccclass, property } = _decorator;
@@ -460,18 +461,55 @@ export class GameManager extends Component {
                 monster.playAttack();
             }
         } else {
-            this.rewards?.startPlayerPowerLossTick();
+            const profile = this.playerRoles?.getCurrentProfile();
+            const battleDistance = monster === finalMonster
+                ? (profile?.bossMonsterBattleDistance ?? monster.battleRadius)
+                : (profile?.normalMonsterBattleDistance ?? monster.battleRadius);
+            const dodgeTarget = this.grid?.findDodgeEscapePosition(
+                this.player.node.position,
+                monster,
+                battleDistance,
+                DodgeConfig.distance,
+                DodgeConfig.exitPadding,
+                -DodgeConfig.visualBackDistance * this.player.getFacing(),
+                DodgeConfig.visualVerticalOffset,
+                DodgeConfig.visualWallClearance,
+            ) || this.player.node.position.clone();
+
+            let dodgeFinished = false;
+            let dodgeStarted = false;
+            let monsterAttackFinished = false;
+            let battleReleased = false;
+            const releaseBattle = () => {
+                if (battleReleased || !dodgeFinished || !monsterAttackFinished) return;
+                battleReleased = true;
+                this.battling = false;
+                if (this.activeBattleMonster === monster) this.activeBattleMonster = null;
+                if (monster === finalMonster) this.targetHint?.show();
+            };
+
+            const startDodge = () => {
+                if (dodgeStarted || !this.player || !this.player.node.isValid) return;
+                dodgeStarted = true;
+                this.player.playDodgeTo(
+                    dodgeTarget,
+                    DodgeConfig.moveDuration,
+                    DodgeConfig.animationDuration,
+                    () => {
+                        dodgeFinished = true;
+                        releaseBattle();
+                    },
+                );
+            };
+
+            // 战力不足时角色仍先出招；怪物命中事件到达后再中断攻击并闪避。
             playPlayerAttack();
-            monster.playAttack();
-            this.scheduleOnce(() => {
-                if (!this.player) return;
-                AudioManager.playRoleDie();
-                this.player.playDie(() => {
-                    this.battling = false;
-                    if (this.activeBattleMonster === monster) this.activeBattleMonster = null;
-                    this.showDeathUI();
-                });
-            }, 0.5);//多久开始播放角色死亡动画
+            monster.playAttackThenIdle(() => {
+                // 个别怪物素材若缺少 event_hit，在攻击结束处兜底触发，避免战斗锁死。
+                startDodge();
+                monsterAttackFinished = true;
+                releaseBattle();
+            }, startDodge);
         }
     }
 

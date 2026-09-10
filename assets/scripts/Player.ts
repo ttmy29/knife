@@ -1,10 +1,29 @@
-import { _decorator, Component, Label, Node, UITransform, Vec2, Vec3, tween, sp } from 'cc';
+import { _decorator, Component, Label, Node, UITransform, Vec2, Vec3, tween, Tween, sp } from 'cc';
 import { Grid } from './Grid';
 import { Monster } from './Monster';
 import { Chest } from './Chest';
 import { AttackAudioType } from './config/ResourceConfig';
 
 const { ccclass, property } = _decorator;
+
+/** 所有角色 dodge 中 st 骨骼的 translate 关键帧。 */
+const DODGE_FOLLOW_TRACK = [
+    { time: 0.0667, x: -7.62, y: -0.6 },
+    { time: 0.1333, x: 10.37, y: 20.47 },
+    { time: 0.2333, x: 8.57, y: 39.45 },
+    { time: 0.2667, x: -10.66, y: 66.81 },
+    { time: 0.3, x: -15.68, y: 75.96 },
+    { time: 0.3333, x: -18.05, y: 99.1 },
+    { time: 0.4333, x: -5.42, y: 94.55 },
+    { time: 0.5667, x: 33.46, y: 49.12 },
+    { time: 0.7, x: -13.58, y: -0.63 },
+    { time: 0.8, x: 0, y: 0 },
+] as const;
+
+interface DodgeFollowNode {
+    node: Node;
+    basePosition: Vec3;
+}
 
 export interface PlayerEvents {
     /** 移动结束；blockMonster 非空表示停在怪物面前要战斗 */
@@ -64,6 +83,7 @@ export class Player extends Component {
     /** 经验球缩放脉冲乘数（不影响朝向） */
     private pulseScale = 1;
     private spineNode: Node | null = null;
+    private dodgeFollowNodes: DodgeFollowNode[] = [];
     private expWhiteGlow: Node | null = null;
     private hideExpWhiteGlowTask: (() => void) | null = null;
     private readonly expWhiteGlowPadding = 80;
@@ -108,6 +128,7 @@ export class Player extends Component {
         this.facing = this.node.scale.x < 0 ? -1 : 1;
         // 角色组合骨骼只从 spine 收集；Effects 有独立动画，不能跟着播放 idle/run。
         this.spineNode = this.node.getChildByName('spine');
+        this.setupDodgeFollowNodes();
         this.skeletons = this.collectPlayerSkeletons();
         this.setupAttackEffects();
         this.setupExpWhiteGlow();
@@ -222,6 +243,97 @@ export class Player extends Component {
         this.moving = false;
     }
 
+    /**
+     * 播放闪避并把角色根节点真实移动到新位置；闪避结束后停在落点，不返回原位。
+     */
+    playDodgeTo(
+        target: Vec3,
+        moveDuration: number,
+        animationDuration: number,
+        onComplete?: () => void,
+    ): void {
+        this.moving = false;
+        this.waypoints = [];
+        this.pathIndex = 0;
+        this.pendingMonster = null;
+        this.interruptAttackPresentation();
+        this.animName = '';
+        this.playAnim('dodge', false);
+        this.playDodgeFollowNodes();
+
+        const safeMoveDuration = Math.max(0, moveDuration);
+        const safeAnimationDuration = Math.max(safeMoveDuration, animationDuration);
+        tween(this.node)
+            .to(safeMoveDuration, { position: target.clone() }, { easing: 'quadOut' })
+            .call(() => {
+                if (!this.grid) return;
+                const cell = this.grid.worldToGrid(this.node.position);
+                if (!cell) return;
+                this.gridCol = cell.x;
+                this.gridRow = cell.y;
+            })
+            .delay(safeAnimationDuration - safeMoveDuration)
+            .call(() => {
+                if (!this.node || !this.node.isValid || this.dead) return;
+                this.animName = '';
+                this.playIdle();
+                if (onComplete) onComplete();
+            })
+            .start();
+    }
+
+    /** dodge 时跟随角色画面位移的根节点子节点，不改变它们的缩放和翻转。 */
+    private setupDodgeFollowNodes(): void {
+        this.dodgeFollowNodes = [];
+        for (const nodeName of ['dong', 'bule', 'Label']) {
+            const node = this.node.getChildByName(nodeName);
+            if (!node) continue;
+            this.dodgeFollowNodes.push({ node, basePosition: node.position.clone() });
+        }
+    }
+
+    private playDodgeFollowNodes(): void {
+        for (const follower of this.dodgeFollowNodes) {
+            const { node, basePosition } = follower;
+            if (!node || !node.isValid) continue;
+
+            Tween.stopAllByTarget(node);
+            node.setPosition(basePosition);
+
+            // dodge 的位移来自 Spine 内部 st 骨骼，按相同关键帧驱动兄弟节点。
+            // Spine 的 y 是画面后退方向，映射到节点局部 -x；不单独处理翻转。
+            let previousTime = 0;
+            const followTween = tween(node);
+            for (const frame of DODGE_FOLLOW_TRACK) {
+                const framePosition = new Vec3(
+                    basePosition.x - frame.y,
+                    basePosition.y + frame.x,
+                    basePosition.z,
+                );
+                followTween.to(frame.time - previousTime, { position: framePosition });
+                previousTime = frame.time;
+            }
+            followTween.start();
+        }
+    }
+
+    private resetDodgeFollowNodes(): void {
+        for (const follower of this.dodgeFollowNodes) {
+            const { node, basePosition } = follower;
+            if (!node || !node.isValid) continue;
+            Tween.stopAllByTarget(node);
+            node.setPosition(basePosition);
+        }
+    }
+
+    /** 怪物命中时中断角色攻击，避免旧完成回调或攻击特效延续到 dodge。 */
+    private interruptAttackPresentation(): void {
+        for (const skeleton of this.currentAnimSkeletons) {
+            if (skeleton && skeleton.isValid) skeleton.setCompleteListener(() => {});
+        }
+        this.hideAttackEffectsGroups();
+    }
+
     getPathIndex(): number {
         return this.pathIndex;
     }
@@ -232,6 +344,7 @@ export class Player extends Component {
         const skeletons = this.skeletons || [];
         if (skeletons.length === 0) return;
         if (this.animName === name) return;
+        if (name !== 'dodge') this.resetDodgeFollowNodes();
         this.animName = name;
         this.currentAnimSkeletons = [];
         for (const sk of skeletons) {
@@ -422,6 +535,8 @@ export class Player extends Component {
 
     private hideAttackEffectsGroups(): void {
         if (this.activeAttackEffect && this.activeAttackEffect.node && this.activeAttackEffect.node.isValid) {
+            this.activeAttackEffect.setEventListener(() => {});
+            this.activeAttackEffect.setCompleteListener(() => {});
             this.activeAttackEffect.node.active = false;
             this.activeAttackEffect = null;
         }

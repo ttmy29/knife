@@ -329,6 +329,126 @@ export class Grid extends Component {
     }
 
     /**
+     * 寻找远离指定怪物、并且位于战斗范围外的合法闪避落点。
+     * 闪避是一次短距离位移，不跨墙、不跨层，也不会落到怪物或宝箱占用格。
+     */
+    findDodgeEscapePosition(
+        startWorld: Vec3,
+        monster: Monster,
+        battleDistance: number,
+        preferredMoveDistance: number,
+        exitPadding: number,
+        visualOffsetX: number,
+        visualOffsetY: number,
+        visualWallClearance: number,
+    ): Vec3 | null {
+        if (!monster.node || !monster.node.isValid) return null;
+        const startCell = this.worldToGrid(startWorld);
+        if (!startCell) return null;
+
+        const monsterCenter = new Vec3();
+        this.node.inverseTransformPoint(monsterCenter, monster.node.worldPosition);
+        let awayX = startWorld.x - monsterCenter.x;
+        let awayY = startWorld.y - monsterCenter.y;
+        const awayLength = Math.sqrt(awayX * awayX + awayY * awayY);
+        if (awayLength > 0.001) {
+            awayX /= awayLength;
+            awayY /= awayLength;
+        } else {
+            awayX = 1;
+            awayY = 0;
+        }
+
+        const requiredMonsterDistance = Math.max(0, battleDistance) + Math.max(0, exitPadding);
+        const preferredDistance = Math.max(this.tileSize, preferredMoveDistance);
+        const searchRadius = Math.ceil((preferredDistance + this.tileSize * 4) / this.tileSize);
+        const startHeight = this.getHeight(startCell.x, startCell.y);
+        const blocked = (col: number, row: number): boolean =>
+            !this.inBounds(col, row)
+            || this.isWall(col, row)
+            || this.isMonsterAt(col, row)
+            || this.isChestAt(col, row);
+        const visuallyBlocked = (col: number, row: number): boolean =>
+            !this.inBounds(col, row)
+            || this.isWall(col, row)
+            || this.getHeight(col, row) !== startHeight;
+
+        const hasVisualClearance = (candidate: Vec3, targetCell: Vec2): boolean => {
+            const visualPeak = new Vec3(
+                candidate.x + visualOffsetX,
+                candidate.y + visualOffsetY,
+                candidate.z,
+            );
+            const peakCell = this.worldToGrid(visualPeak);
+            if (!peakCell || visuallyBlocked(peakCell.x, peakCell.y)) return false;
+
+            // 根节点落点合法还不够：继续检查 Spine 自带后退所经过的整段路径。
+            const peakStairsBlocked = !this.isStair(targetCell.x, targetCell.y)
+                && !this.isStair(peakCell.x, peakCell.y);
+            if (!this.hasLineOfSight(targetCell, peakCell, peakStairsBlocked, false, visuallyBlocked)) {
+                return false;
+            }
+            const fullPathStairsBlocked = !this.isStair(startCell.x, startCell.y)
+                && !this.isStair(peakCell.x, peakCell.y);
+            if (!this.hasLineOfSight(startCell, peakCell, fullPathStairsBlocked, false, visuallyBlocked)) {
+                return false;
+            }
+
+            const clearance = Math.max(0, visualWallClearance);
+            if (clearance <= 0) return true;
+            const checkPoints = [
+                new Vec3(visualPeak.x + clearance, visualPeak.y, visualPeak.z),
+                new Vec3(visualPeak.x - clearance, visualPeak.y, visualPeak.z),
+                new Vec3(visualPeak.x, visualPeak.y + clearance, visualPeak.z),
+                new Vec3(visualPeak.x, visualPeak.y - clearance, visualPeak.z),
+            ];
+            for (const point of checkPoints) {
+                const cell = this.worldToGrid(point);
+                if (!cell || visuallyBlocked(cell.x, cell.y)) return false;
+            }
+            return true;
+        };
+
+        const search = (requireAwayDirection: boolean): Vec3 | null => {
+            let best: { position: Vec3; score: number } | null = null;
+            for (let row = startCell.y - searchRadius; row <= startCell.y + searchRadius; row++) {
+                for (let col = startCell.x - searchRadius; col <= startCell.x + searchRadius; col++) {
+                    if (blocked(col, row) || this.getHeight(col, row) !== startHeight) continue;
+                    const candidate = this.gridToWorld(col, row);
+                    candidate.z = startWorld.z;
+                    const fromMonsterX = candidate.x - monsterCenter.x;
+                    const fromMonsterY = candidate.y - monsterCenter.y;
+                    const monsterDistance = Math.sqrt(
+                        fromMonsterX * fromMonsterX + fromMonsterY * fromMonsterY,
+                    );
+                    if (monsterDistance < requiredMonsterDistance) continue;
+
+                    const moveX = candidate.x - startWorld.x;
+                    const moveY = candidate.y - startWorld.y;
+                    const moveDistance = Math.sqrt(moveX * moveX + moveY * moveY);
+                    if (moveDistance < 0.001) continue;
+                    const directionDot = (moveX * awayX + moveY * awayY) / moveDistance;
+                    if (requireAwayDirection && directionDot < 0.25) continue;
+
+                    const targetCell = new Vec2(col, row);
+                    const stairsBlocked = !this.isStair(startCell.x, startCell.y)
+                        && !this.isStair(col, row);
+                    if (!this.hasLineOfSight(startCell, targetCell, stairsBlocked, false, blocked)) continue;
+                    if (!hasVisualClearance(candidate, targetCell)) continue;
+
+                    const directionPenalty = (1 - directionDot) * preferredDistance;
+                    const distancePenalty = Math.abs(moveDistance - preferredDistance) * 2;
+                    const score = directionPenalty + distancePenalty + moveDistance * 0.05;
+                    if (!best || score < best.score) best = { position: candidate, score };
+                }
+            }
+            return best ? best.position : null;
+        };
+
+        return search(true) || search(false);
+    }
+
+    /**
      * 寻路（需求 1/2/3/8/9/10）。
      * - 目标是墙 / 越界 -> null（无反应）
      * - 怪物格可通行：无论点击怪物还是怪物身后的地面，路径都完整画到目标（穿过怪物格，绿线到怪物脚下）；
