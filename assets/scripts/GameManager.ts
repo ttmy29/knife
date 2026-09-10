@@ -1,6 +1,6 @@
 import {
     _decorator, Component, Node, Graphics,
-    Color, Vec3, Camera,
+    Color, Vec3, Camera, sp, UIOpacity, UITransform,
 } from 'cc';
 import { Grid } from './Grid';
 import { Monster } from './Monster';
@@ -25,6 +25,7 @@ import { AudioManager } from './core/AudioManager';
 import { PrefabManager } from './core/PrefabManager';
 import { AttackAudioType } from './config/ResourceConfig';
 import { BaseRoleSpecialBattleConfig } from './config/PlayerRoleConfig';
+import { GameAssets } from './GameAssets';
 
 const { ccclass, property } = _decorator;
 
@@ -35,11 +36,14 @@ const { ccclass, property } = _decorator;
  */
 @ccclass('GameManager')
 export class GameManager extends Component {
+    @property(GameAssets)
+    public gameAssets = new GameAssets();
+
     @property({ type: Node })
     public finalBossMaskNode: Node | null = null;
 
     @property({ tooltip: 'Canvas/Camera 的基础正交高度；数值越大，主画面显示范围越大。' })
-    public baseCameraOrthoHeight = 900;
+    public baseCameraOrthoHeight = 1200;
 
     private grid: Grid | null = null;
     private player: Player | null = null;
@@ -60,11 +64,14 @@ export class GameManager extends Component {
     private monsterGuide: MonsterGuideController | null = null;
     private openingSequence: OpeningSequenceController | null = null;
     private targetHint: TargetHintController | null = null;
+    private hitEffectsNode: Node | null = null;
 
     onLoad(): void {
-        AudioManager.init(this.node);
+        PrefabManager.init(this.gameAssets);
+        AudioManager.init(this.node, this.gameAssets);
         AudioManager.playBgm();
         AudioManager.playRoar();
+        this.setupHitEffectsNode();
 
         const canvas = this.node.parent;
         this.camera = canvas ? canvas.getComponentInChildren(Camera) : null;
@@ -156,6 +163,7 @@ export class GameManager extends Component {
         this.monsterController.startViewportCulling();
         void this.loadOpeningScene();
     }
+
 
     onDestroy(): void {
         this.finalBossCinematic?.restoreAll();
@@ -284,7 +292,56 @@ export class GameManager extends Component {
             onBattle: (m: Monster) => this.doBattle(m),
             onChest: (chest: Chest) => this.chests?.openChest(chest),
             onAttack: (sound: AttackAudioType) => AudioManager.playAttack(sound),
+            onAttackEffectHit: (effectName: string) => this.playMonsterHitEffect(effectName),
         };
+    }
+
+    private setupHitEffectsNode(): void {
+        this.hitEffectsNode = this.node.getChildByName('HitEffects');
+        if (this.hitEffectsNode) return;
+        this.hitEffectsNode = new Node('HitEffects');
+        this.node.addChild(this.hitEffectsNode);
+    }
+
+    private playMonsterHitEffect(attackEffectName: string): void {
+        const monster = this.activeBattleMonster;
+        if (!monster?.node?.isValid) return;
+
+        let skeletonData: sp.SkeletonData | null = null;
+        if (attackEffectName === '100001_attack_2') {
+            skeletonData = this.gameAssets.hit100001Attack2;
+        } else if (attackEffectName === '100001_attack_4') {
+            skeletonData = this.gameAssets.hit100001Attack4;
+        } else if (attackEffectName === '10009_attack_4') {
+            skeletonData = this.gameAssets.hit10009Attack4;
+        }
+        if (!skeletonData) return;
+
+        if (!this.hitEffectsNode?.isValid) this.setupHitEffectsNode();
+        if (!this.hitEffectsNode) return;
+
+        const effectNode = new Node(`${attackEffectName}_hit`);
+        effectNode.layer = this.node.layer;
+        effectNode.addComponent(UITransform);
+        this.hitEffectsNode.addChild(effectNode);
+        const targetPosition = monster.node.worldPosition;
+        effectNode.setWorldPosition(targetPosition.x, targetPosition.y + 50, targetPosition.z);
+
+        const playerWorldScale = Math.abs(this.player?.node.worldScale.y || 1);
+        const parentWorldScale = Math.abs(this.hitEffectsNode.worldScale.y) || 1;
+        const scale = playerWorldScale / parentWorldScale * 1.3;
+        const facing = this.player?.getFacing() || 1;
+        effectNode.setScale(facing * scale, scale, 1);
+
+        const skeleton = effectNode.addComponent(sp.Skeleton);
+        skeleton.skeletonData = skeletonData;
+        skeleton.premultipliedAlpha = false;
+        skeleton.setSkin('default');
+        skeleton.setCompleteListener(() => {
+            skeleton.setCompleteListener(() => {});
+            if (effectNode.isValid) effectNode.destroy();
+        });
+        skeleton.setAnimation(0, 'animation', false);
     }
 
     /** 相机跟随角色：给 Camera �?CameraFollow 并指定目�?*/
@@ -381,6 +438,7 @@ export class GameManager extends Component {
                 if (this.player) this.player.power += rewardPower;
                 if (isFinalMonster) AudioManager.playBossDie();
                 else AudioManager.playMonsterDie();
+                this.camera?.getComponent(CameraFollow)?.shake();
                 monster.playDie(hideMonster);
                 // 死亡动画兜底：异常（动画不播�?骨骼失效）时强制结束
                 this.scheduleOnce(hideMonster, 3);

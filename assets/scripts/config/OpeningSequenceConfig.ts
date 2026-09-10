@@ -13,6 +13,8 @@ export interface OpeningSequenceProfile {
     initialCameraOffsetY: number;
     /** 所有资源实例化后，镜头移动到角色所需时间（秒）。 */
     cameraMoveDuration: number;
+    /** 开局保持镜头位置和扩大视野完全不动的时间（秒）。 */
+    cameraStartDelay: number;
     /** 镜头到位后，从扩大视野恢复到正常视野所需时间（秒）。 */
     cameraZoomDuration: number;
     /** 恢复正常视野时，相对角色的水平偏移；负数向左。 */
@@ -42,10 +44,11 @@ export const OpeningSequenceConfig: OpeningSequenceProfile = {
     playerHitSoundDelay: 1,
     firstHelpSoundDelay: 5,
     helpSoundInterval: 6,
-    initialCameraOrthoScale: 1.5,
+    initialCameraOrthoScale: 1.3,
     initialCameraOffsetY: 100,
-    cameraMoveDuration: 0.5,
-    cameraZoomDuration: 0.3,
+    cameraMoveDuration: 1,//0.5
+    cameraStartDelay: 0.5,
+    cameraZoomDuration: 1,//0.3
     cameraTargetOffsetX: -100,
     playerRollStart: { x: -120, y: 510 },
     temporaryPlayerLabelText: '1888',

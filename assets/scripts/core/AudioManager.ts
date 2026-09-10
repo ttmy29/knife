@@ -1,20 +1,21 @@
 import { AudioClip, AudioSource, Node, warn } from 'cc';
-import { AttackAudioType, BundleConfig, ResourcePath } from '../config/ResourceConfig';
-import { BundleManager } from './BundleManager';
+import { AttackAudioType } from '../config/ResourceConfig';
+import { GameAssets, GameAudioKey } from '../GameAssets';
 
 export class AudioManager {
     private static source: AudioSource | null = null;
+    private static assets: GameAssets | null = null;
     private static bgmClip: AudioClip | null = null;
-    private static readonly clipCache = new Map<string, AudioClip>();
     private static readonly bgmVolume = 0.8;
     private static readonly sfxVolume = 2;
 
-    static init(owner: Node): void {
+    static init(owner: Node, assets: GameAssets): void {
         this.source = owner.getComponent(AudioSource) || owner.addComponent(AudioSource);
+        this.assets = assets;
     }
 
     static playBgm(): void {
-        void this.playBgmByPath(ResourcePath.Audio.Bgm);
+        void this.playBgmByKey('bgm');
     }
 
     static stopBgm(): void {
@@ -26,106 +27,106 @@ export class AudioManager {
     }
 
     static playAttack(type: AttackAudioType = 'attack1'): void {
-        const paths: Record<AttackAudioType, string> = {
-            attack1: ResourcePath.Audio.Attack,
-            attack2: ResourcePath.Audio.Attack2,
-            attack3: ResourcePath.Audio.Attack3,
+        const keys: Record<AttackAudioType, GameAudioKey> = {
+            attack1: 'attack1',
+            attack2: 'attack2',
+            attack3: 'attack3',
         };
-        void this.playSfxByPath(paths[type]);
+        void this.playSfxByKey(keys[type]);
     }
 
     static playMonsterDie(): void {
-        void this.playSfxByPath(ResourcePath.Audio.MonsterDie);
+        void this.playSfxByKey('monsterDie');
     }
 
     static async preloadRoleDie(): Promise<void> {
-        await this.loadMusicClip(ResourcePath.Audio.RoleDie);
+        await this.getClip('roleDie');
     }
 
     static playRoleDie(): void {
-        void this.playSfxByPath(ResourcePath.Audio.RoleDie);
+        void this.playSfxByKey('roleDie');
     }
 
     static async preloadRoleBehit(): Promise<void> {
-        await this.loadMusicClip(ResourcePath.Audio.RoleBehit);
+        await this.getClip('roleBehit');
     }
 
     static playRoleBehit(): void {
-        void this.playSfxByPath(ResourcePath.Audio.RoleBehit);
+        void this.playSfxByKey('roleBehit');
     }
 
     static async preloadHelpSounds(): Promise<void> {
         await Promise.all([
-            this.loadMusicClip(ResourcePath.Audio.Help1),
-            this.loadMusicClip(ResourcePath.Audio.Help2),
+            this.getClip('help1'),
+            this.getClip('help2'),
         ]);
     }
 
     static playRoar(): void {
-        void this.playSfxByPath(ResourcePath.Audio.Roar);
+        void this.playSfxByKey('roar');
     }
 
     static playHelp1(): void {
-        void this.playSfxByPath(ResourcePath.Audio.Help1);
+        void this.playSfxByKey('help1');
     }
 
     static playHelp2(): void {
-        void this.playSfxByPath(ResourcePath.Audio.Help2);
+        void this.playSfxByKey('help2');
     }
 
     static async preloadFinalBossSounds(): Promise<void> {
         await Promise.all([
-            this.loadMusicClip(ResourcePath.Audio.HeHa),
-            this.loadMusicClip(ResourcePath.Audio.bossAttack),
-            this.loadMusicClip(ResourcePath.Audio.bossDie),
+            this.getClip('heHa'),
+            this.getClip('bossAttack'),
+            this.getClip('bossDie'),
         ]);
     }
 
     static playHeHa(): void {
-        void this.playSfxByPath(ResourcePath.Audio.HeHa);
+        void this.playSfxByKey('heHa');
     }
 
     static playBossAttack(): void {
-        void this.playSfxByPath(ResourcePath.Audio.bossAttack);
+        void this.playSfxByKey('bossAttack');
     }
 
     static playBossDie(): void {
-        void this.playSfxByPath(ResourcePath.Audio.bossDie);
+        void this.playSfxByKey('bossDie');
     }
 
     static playExpCollect(): void {
-        void this.playSfxByPath(ResourcePath.Audio.ExpCollect);
+        void this.playSfxByKey('expCollect');
     }
 
     static playLevelUp(): void {
-        void this.playSfxByPath(ResourcePath.Audio.LevelUp);
+        void this.playSfxByKey('levelUp');
     }
 
     static playCheer(): void {
-        void this.playSfxByPath(ResourcePath.Audio.Cheer);
+        void this.playSfxByKey('cheer');
     }
 
     static async preloadShout(): Promise<void> {
-        await this.loadMusicClip(ResourcePath.Audio.Shout);
+        await this.getClip('shout');
     }
 
     static playShout(): void {
-        void this.playSfxByPath(ResourcePath.Audio.Shout);
+        void this.playSfxByKey('shout');
     }
 
     static playFail(): void {
-        void this.playSfxByPath(ResourcePath.Audio.Fail);
+        void this.playSfxByKey('fail');
     }
 
     static playVictory(): void {
-        void this.playSfxByPath(ResourcePath.Audio.Victory);
+        void this.playSfxByKey('victory');
     }
 
-    private static async playBgmByPath(path: string): Promise<void> {
+    private static async playBgmByKey(key: GameAudioKey): Promise<void> {
         const source = this.source;
         if (!source) return;
 
-        const clip = await this.loadMusicClip(path);
+        const clip = await this.getClip(key);
         if (!clip || !source.isValid) return;
         if (this.bgmClip === clip && source.playing) return;
 
@@ -136,34 +137,21 @@ export class AudioManager {
         source.play();
     }
 
-    private static async playSfxByPath(path: string): Promise<void> {
+    private static async playSfxByKey(key: GameAudioKey): Promise<void> {
         const source = this.source;
         if (!source) return;
 
-        const clip = await this.loadMusicClip(path);
+        const clip = await this.getClip(key);
         if (!clip || !source.isValid) return;
         source.playOneShot(clip, this.sfxVolume);
     }
 
-    private static async loadMusicClip(path: string): Promise<AudioClip | null> {
-        const bundleName = BundleConfig.Names.Music;
-        const assetPath = this.toBundleAssetPath(bundleName, path);
-        const cacheKey = `${bundleName}:${assetPath}`;
-        const cached = this.clipCache.get(cacheKey);
-        if (cached && cached.isValid) return cached;
-
-        try {
-            const clip = await BundleManager.loadAsset(bundleName, assetPath, AudioClip);
-            this.clipCache.set(cacheKey, clip);
-            return clip;
-        } catch (err) {
-            warn(`[AudioManager] load audio failed: ${path}`, err);
+    private static async getClip(key: GameAudioKey): Promise<AudioClip | null> {
+        const clip = this.assets?.getAudio(key) || null;
+        if (!clip || !clip.isValid) {
+            warn(`[AudioManager] audio is not bound in GameAssets: ${key}`);
             return null;
         }
-    }
-
-    private static toBundleAssetPath(bundleName: string, path: string): string {
-        const prefix = `${bundleName}/`;
-        return path.startsWith(prefix) ? path.slice(prefix.length) : path;
+        return clip;
     }
 }

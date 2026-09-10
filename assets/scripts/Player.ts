@@ -15,6 +15,8 @@ export interface PlayerEvents {
     onChest: (chest: Chest) => void;
     /** 角色攻击动画开始时播放音效 */
     onAttack?: (sound: AttackAudioType) => void;
+    /** 当前攻击特效时间轴触发 event_hit。 */
+    onAttackEffectHit?: (effectName: string) => void;
 }
 
 /** 角色：沿 A* 路径逐格移动；进怪前停下并回调战斗 */
@@ -443,7 +445,14 @@ export class Player extends Component {
         if (effect.node.parent) effect.node.parent.active = true;
         effect.timeScale = this.animationTimeScale;
         effect.node.active = true;
+        let hitTriggered = false;
+        effect.setEventListener((_entry, event) => {
+            if (hitTriggered || typeof event === 'number' || event.data?.name !== 'event_hit') return;
+            hitTriggered = true;
+            if (this.events?.onAttackEffectHit) this.events.onAttackEffectHit(effect.node.name);
+        });
         effect.setCompleteListener(() => {
+            effect.setEventListener(() => {});
             effect.setCompleteListener(() => {});
             if (effect.node && effect.node.isValid) effect.node.active = false;
             if (effect.node.parent && effect.node.parent.isValid) effect.node.parent.active = false;

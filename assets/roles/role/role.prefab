@@ -3947,7 +3947,7 @@
       "__uuid__": "746021df-bc6c-41b3-9d5d-8e97dc589e92",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
@@ -4083,7 +4083,7 @@
       "__uuid__": "f1a91e57-4a16-4271-954d-fc65d05819d6",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
@@ -4219,7 +4219,7 @@
       "__uuid__": "bac09976-001a-40ac-ac81-611e823def60",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
@@ -4355,7 +4355,7 @@
       "__uuid__": "864395a2-34c4-48c5-8f8a-7e061560a77f",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
@@ -4592,7 +4592,7 @@
       "__uuid__": "890e948b-48dd-4188-b59a-4df4762ebc52",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
@@ -4728,7 +4728,7 @@
       "__uuid__": "7401ed96-138f-4481-ad07-55a878304270",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
@@ -4864,7 +4864,7 @@
       "__uuid__": "a783ab21-fb1e-4033-a5c8-7b9917621145",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
@@ -5000,7 +5000,7 @@
       "__uuid__": "7c7140d8-0c58-4c28-a114-99f2940ce9b9",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
@@ -5237,7 +5237,7 @@
       "__uuid__": "5945f8ae-12e3-456a-935a-56deb14509eb",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
@@ -5373,7 +5373,7 @@
       "__uuid__": "9464226b-4cd4-48af-93a3-167f500de42a",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
@@ -5509,7 +5509,7 @@
       "__uuid__": "935e8bdb-6f1d-433c-bd38-90483beb5665",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
@@ -5645,7 +5645,7 @@
       "__uuid__": "c5bf0b65-6f4b-4816-9e87-0da71267f86d",
       "__expectedType__": "sp.SkeletonData"
     },
-    "defaultSkin": "default",
+    "defaultSkin": "1",
     "defaultAnimation": "",
     "_premultipliedAlpha": false,
     "_timeScale": 1,

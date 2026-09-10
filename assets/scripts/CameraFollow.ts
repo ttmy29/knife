@@ -1,4 +1,5 @@
 import { _decorator, Camera, clamp, Component, Node, Rect, tween, Tween, UITransform, Vec3, view } from 'cc';
+import { CameraShakeConfig } from './config/CameraShakeConfig';
 
 const { ccclass, property } = _decorator;
 
@@ -31,6 +32,13 @@ export class CameraFollow extends Component {
     /** 地图边界（世界坐标） */
     private bounds: Rect | null = null;
     private transitioning = false;
+    private shakeElapsed = 0;
+    private shakeDuration = 0;
+    private shakeStrength = 0;
+    private shakeFrequency = 0;
+    private shakeSampleElapsed = 0;
+    private shakeOffsetX = 0;
+    private shakeOffsetY = 0;
 
     start(): void {
         this.bounds = this.getBounds();
@@ -80,7 +88,22 @@ export class CameraFollow extends Component {
             .start();
     }
 
-    lateUpdate(): void {
+    /** 击杀反馈：在正常跟随位置上叠加短暂震动，不产生累计位移。 */
+    shake(
+        duration = CameraShakeConfig.kill.duration,
+        strength = CameraShakeConfig.kill.strength,
+        frequency = CameraShakeConfig.kill.frequency,
+    ): void {
+        this.shakeDuration = Math.max(0, duration);
+        this.shakeStrength = Math.max(0, strength);
+        this.shakeFrequency = Math.max(1, frequency);
+        this.shakeElapsed = 0;
+        this.shakeSampleElapsed = 1 / this.shakeFrequency;
+        this.shakeOffsetX = 0;
+        this.shakeOffsetY = 0;
+    }
+
+    lateUpdate(dt: number): void {
         if (this.transitioning) return;
         if (!this.target || !this.target.isValid) return;
         const parent = this.node.parent;
@@ -101,7 +124,31 @@ export class CameraFollow extends Component {
 
         const cam = this.node.position;
         const desired = this.clampCameraLocal(new Vec3(local.x, local.y, cam.z), ut);
-        this.node.setPosition(desired.x, desired.y, cam.z);
+        this.updateShake(dt);
+        this.node.setPosition(
+            desired.x + this.shakeOffsetX,
+            desired.y + this.shakeOffsetY,
+            cam.z,
+        );
+    }
+
+    private updateShake(dt: number): void {
+        if (this.shakeDuration <= 0 || this.shakeElapsed >= this.shakeDuration) {
+            this.shakeOffsetX = 0;
+            this.shakeOffsetY = 0;
+            return;
+        }
+
+        this.shakeElapsed = Math.min(this.shakeDuration, this.shakeElapsed + Math.max(0, dt));
+        this.shakeSampleElapsed += Math.max(0, dt);
+        const sampleInterval = 1 / this.shakeFrequency;
+        if (this.shakeSampleElapsed < sampleInterval && this.shakeElapsed < this.shakeDuration) return;
+
+        this.shakeSampleElapsed %= sampleInterval;
+        const attenuation = 1 - this.shakeElapsed / this.shakeDuration;
+        const amplitude = this.shakeStrength * attenuation;
+        this.shakeOffsetX = (Math.random() * 2 - 1) * amplitude;
+        this.shakeOffsetY = (Math.random() * 2 - 1) * amplitude;
     }
 
     /** 直接把相机对准角色（身体中心） */
@@ -190,5 +237,7 @@ export class CameraFollow extends Component {
 
     onDestroy(): void {
         Tween.stopAllByTarget(this.node);
+        this.shakeOffsetX = 0;
+        this.shakeOffsetY = 0;
     }
 }

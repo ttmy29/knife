@@ -23,6 +23,7 @@ export class OpeningSequenceController {
     private originalCameraOrthoHeight: number | null = null;
     private originalCameraOffsetX: number | null = null;
     private rollProgress: RollProgress | null = null;
+    private cameraStartDelay: SoundDelayProgress | null = null;
     private playerHitSoundDelay: SoundDelayProgress | null = null;
     private helpSoundDelay: SoundDelayProgress | null = null;
     private helpSoundIndex = 0;
@@ -47,6 +48,7 @@ export class OpeningSequenceController {
         this.originalCameraOffsetX = null;
         this.originalPlayerLabelText = null;
         this.stopRollTween();
+        this.stopCameraStartDelay();
         this.stopPlayerHitSoundDelay();
         this.stopHelpSoundDelay();
         this.helpSoundIndex = 0;
@@ -81,6 +83,7 @@ export class OpeningSequenceController {
         this.restoreCameraOrthoHeight();
         this.restoreCameraOffset();
         this.restorePlayerLabel();
+        this.stopCameraStartDelay();
         this.stopPlayerHitSoundDelay();
         const player = this.getPlayer();
         if (!player || !player.node.isValid) return;
@@ -134,7 +137,7 @@ export class OpeningSequenceController {
         const tryStartMonsterAttack = (): void => {
             if (attackStarted || !monsterReady || !cameraReady) return;
             attackStarted = true;
-            AudioManager.playShout();
+           // AudioManager.playShout();
             this.moveMonsterLayerAbovePlayer();
             let rollStarted = false;
             const startRoll = (): void => {
@@ -175,26 +178,31 @@ export class OpeningSequenceController {
             cameraReady = true;
             tryStartMonsterAttack();
         };
-        follow.moveToWorldPosition(
-            player.node.worldPosition,
-            OpeningSequenceConfig.cameraMoveDuration,
-            () => {
-                movementReady = true;
+        const beginCameraTransition = (): void => {
+            if (!this.activeState || !player.node.isValid || !camera.node.isValid) return;
+            follow.moveToWorldPosition(
+                player.node.worldPosition,
+                OpeningSequenceConfig.cameraMoveDuration,
+                () => {
+                    movementReady = true;
+                    tryFinishCamera();
+                },
+                this.originalCameraOrthoHeight === null
+                    ? camera.orthoHeight
+                    : this.originalCameraOrthoHeight,
+            );
+            AudioManager.playHelp2();
+            this.zoomCameraToOriginal(() => {
+                zoomReady = true;
                 tryFinishCamera();
-            },
-            this.originalCameraOrthoHeight === null
-                ? camera.orthoHeight
-                : this.originalCameraOrthoHeight,
-        );
-        AudioManager.playHelp2();
-        this.zoomCameraToOriginal(() => {
-            zoomReady = true;
-            tryFinishCamera();
-        });
+            });
+        };
+        this.startCameraTransitionDelay(beginCameraTransition);
     }
 
     destroy(): void {
         this.stopRollTween();
+        this.stopCameraStartDelay();
         this.restoreCameraOrthoHeight();
         this.restoreCameraOffset();
         this.restoreMonsterLayer();
@@ -388,6 +396,31 @@ export class OpeningSequenceController {
                 onComplete();
             })
             .start();
+    }
+
+    private startCameraTransitionDelay(onComplete: () => void): void {
+        this.stopCameraStartDelay();
+        const delay = Math.max(0, OpeningSequenceConfig.cameraStartDelay);
+        if (delay === 0) {
+            onComplete();
+            return;
+        }
+
+        const progress: SoundDelayProgress = { elapsed: 0 };
+        this.cameraStartDelay = progress;
+        tween(progress)
+            .delay(delay)
+            .call(() => {
+                this.cameraStartDelay = null;
+                if (this.activeState) onComplete();
+            })
+            .start();
+    }
+
+    private stopCameraStartDelay(): void {
+        if (!this.cameraStartDelay) return;
+        Tween.stopAllByTarget(this.cameraStartDelay);
+        this.cameraStartDelay = null;
     }
 
     private stopRollTween(): void {
