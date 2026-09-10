@@ -1,0 +1,20 @@
+
+10109_fixed.png
+size: 78,133
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+冲锋套 副本 2/tk
+  rotate: false
+  xy: 0, 33
+  size: 78, 100
+  orig: 80, 102
+  offset: 1, 1
+  index: -1
+冲锋套 副本 2/tk1
+  rotate: false
+  xy: 0, 0
+  size: 59, 31
+  orig: 60, 31
+  offset: 1, 0
+  index: -1

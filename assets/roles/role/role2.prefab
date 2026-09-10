@@ -675,7 +675,7 @@
       "__expectedType__": "sp.SkeletonData"
     },
     "defaultSkin": "1",
-    "defaultAnimation": "",
+    "defaultAnimation": "idle",
     "_premultipliedAlpha": false,
     "_timeScale": 1,
     "_preCacheMode": 0,
@@ -807,7 +807,7 @@
       "a": 255
     },
     "_skeletonData": {
-      "__uuid__": "835c9c01-f3b6-4fc9-8565-c01ccce67065",
+      "__uuid__": "fb6d79e7-9b57-4592-9063-b510d4ca140f",
       "__expectedType__": "sp.SkeletonData"
     },
     "defaultSkin": "1",
