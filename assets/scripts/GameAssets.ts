@@ -38,7 +38,9 @@ export type GameAudioKey =
     | 'roleBehit'
     | 'help1'
     | 'help2'
-    | 'roar';
+    | 'roar'
+    | 'smallAttack'
+    | 'bigAttack';
 
 /**
  * 游戏直接资源引用。
@@ -92,6 +94,8 @@ export class GameAssets {
     @property(AudioClip) help1: AudioClip | null = null;
     @property(AudioClip) help2: AudioClip | null = null;
     @property(AudioClip) roar: AudioClip | null = null;
+    @property(AudioClip) smallAttack: AudioClip | null = null;
+    @property(AudioClip) bigAttack: AudioClip | null = null;
 
     getPrefab(key: GamePrefabKey): Prefab | null {
         return this[key] as Prefab | null;

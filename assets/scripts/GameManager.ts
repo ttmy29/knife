@@ -395,9 +395,15 @@ export class GameManager extends Component {
         if (this.pathLine) this.pathLine.clear();
         this.player.faceToWorldX(monster.node.worldPosition.x);
         monster.faceToWorldX(this.player.node.worldPosition.x);
+        const useBigMonsterAttack = BaseRoleSpecialBattleConfig.targetMonsterNames
+            .some(name => name === monster.node.name);
         const useAttack3 = this.playerRoles?.getCurrentPrefabRoleType() === 'role'
-            && BaseRoleSpecialBattleConfig.targetMonsterNames.some(name => name === monster.node.name);
-        const playPlayerAttack = (onComplete?: () => void, onImpact?: () => void): void => {
+            && useBigMonsterAttack;
+        const playPlayerAttack = (
+            onComplete?: () => void,
+            onImpact?: () => void,
+            playSound = true,
+        ): void => {
             if (!this.player) return;
             if (useAttack3) {
                 this.player.playAttackAnimation(
@@ -407,8 +413,9 @@ export class GameManager extends Component {
                     undefined,
                     BaseRoleSpecialBattleConfig.attackSoundDelay,
                     BaseRoleSpecialBattleConfig.attackImpactDelay,
+                    playSound,
                 );
-            } else this.player.playAttack(onComplete, onImpact);
+            } else this.player.playAttack(onComplete, onImpact, undefined, playSound);
         };
         const win = this.player.power > monster.power;
         const rewardPower = monster.power;
@@ -491,6 +498,7 @@ export class GameManager extends Component {
             const startDodge = () => {
                 if (dodgeStarted || !this.player || !this.player.node.isValid) return;
                 dodgeStarted = true;
+                if (!useBigMonsterAttack) AudioManager.playMonsterAttack(false);
                 this.player.playDodgeTo(
                     dodgeTarget,
                     DodgeConfig.moveDuration,
@@ -502,8 +510,8 @@ export class GameManager extends Component {
                 );
             };
 
-            // 战力不足时角色仍先出招；怪物命中事件到达后再中断攻击并闪避。
-            playPlayerAttack();
+            playPlayerAttack(undefined, undefined, false);
+            if (useBigMonsterAttack) AudioManager.playMonsterAttack(true);
             monster.playAttackThenIdle(() => {
                 // 个别怪物素材若缺少 event_hit，在攻击结束处兜底触发，避免战斗锁死。
                 startDodge();

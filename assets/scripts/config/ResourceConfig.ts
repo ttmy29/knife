@@ -204,5 +204,7 @@ export const ResourcePath = {
         Help1: 'music/Help1',
         Help2: 'music/Help2',
         Roar: 'music/Roar',
+        smallAttack:'music/smallAttack',
+        bigAttack:'music/bigAttack',
     },
 };

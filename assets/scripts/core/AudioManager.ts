@@ -35,6 +35,10 @@ export class AudioManager {
         void this.playSfxByKey(keys[type]);
     }
 
+    static playMonsterAttack(useBigAttack: boolean): void {
+        void this.playSfxByKey(useBigAttack ? 'bigAttack' : 'smallAttack');
+    }
+
     static playMonsterDie(): void {
         void this.playSfxByKey('monsterDie');
     }

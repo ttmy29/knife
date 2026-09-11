@@ -480,8 +480,13 @@ export class Player extends Component {
     }
 
     /** 音效、命中与动画结束分别回调，供不同战斗表现选择对应时机。 */
-    playAttack(onComplete?: () => void, onImpact?: () => void, onSound?: () => void): void {
-        this.playAttackAnimation(this.attackAnimation, onComplete, onImpact, onSound);
+    playAttack(
+        onComplete?: () => void,
+        onImpact?: () => void,
+        onSound?: () => void,
+        playSound = true,
+    ): void {
+        this.playAttackAnimation(this.attackAnimation, onComplete, onImpact, onSound, undefined, undefined, playSound);
     }
 
     /** 单次覆盖攻击动画，不改变普通攻击配置。 */
@@ -492,6 +497,7 @@ export class Player extends Component {
         onSound?: () => void,
         soundDelay: number = this.attackSoundDelay,
         impactDelay: number = this.attackImpactDelay,
+        playSound = true,
     ): void {
         this.playAnim(animation, false);
         this.playAttackEffect(animation);
@@ -499,8 +505,10 @@ export class Player extends Component {
             if (this.events && this.events.onAttack) this.events.onAttack(this.attackSound);
             if (onSound) onSound();
         };
-        if (soundDelay > 0) this.scheduleOnce(playAttackSound, soundDelay);
-        else playAttackSound();
+        if (playSound) {
+            if (soundDelay > 0) this.scheduleOnce(playAttackSound, soundDelay);
+            else playAttackSound();
+        }
         let impacted = false;
         const triggerImpact = () => {
             if (impacted) return;
