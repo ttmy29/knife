@@ -1,10 +1,9 @@
-import { Camera, Label, Node, tween, Tween, UIOpacity, UITransform, Vec3 } from 'cc';
+import { Camera, Color, Graphics, Label, Node, tween, Tween, UIOpacity, UITransform, Vec3 } from 'cc';
 import { CameraFollow } from './CameraFollow';
 import { Grid } from './Grid';
 import { Monster } from './Monster';
 import { Player } from './Player';
 import { OpeningSequenceConfig } from './config/OpeningSequenceConfig';
-import { MonsterSpawnConfig } from './config/MonsterConfig';
 import { AudioManager } from './core/AudioManager';
 
 interface RollProgress {
@@ -53,6 +52,21 @@ export class OpeningSequenceController {
         this.stopHelpSoundDelay();
         this.helpSoundIndex = 0;
         this.helpSoundsStopped = false;
+        this.showLoadingMask();
+    }
+
+    /** 黑屏期间外部资源照常加载；固定时间结束后关闭黑幕，再继续原开场流程。 */
+    waitForLoadingMask(): Promise<void> {
+        return new Promise(resolve => {
+            const progress: SoundDelayProgress = { elapsed: 0 };
+            tween(progress)
+                .delay(Math.max(0, OpeningSequenceConfig.loadingMaskDuration))
+                .call(() => {
+                    this.hideLoadingMask();
+                    resolve();
+                })
+                .start();
+        });
     }
 
     get active(): boolean {
@@ -152,11 +166,10 @@ export class OpeningSequenceController {
             }, startRoll);
             this.startPlayerHitSoundDelay();
         };
-        monster.playSpawnFade(MonsterSpawnConfig.fadeDuration, () => {
-            monster.activateOnGrid();
-            monsterReady = true;
-            tryStartMonsterAttack();
-        });
+        // monster1 已在直绑预制体创建后显示；这里只等待镜头，不再重复淡入。
+        monster.activateOnGrid();
+        monsterReady = true;
+        tryStartMonsterAttack();
 
         if (!camera) {
             this.restoreCameraOrthoHeight();
@@ -209,6 +222,31 @@ export class OpeningSequenceController {
         this.restorePlayerLabel();
         this.stopPlayerHitSoundDelay();
         this.stopHelpSoundDelay();
+    }
+
+    private showLoadingMask(): void {
+        const mask = this.worldNode.parent?.getChildByName('LoadingMask');
+        if (!mask) return;
+
+        mask.active = true;
+        const opacity = mask.getComponent(UIOpacity) || mask.addComponent(UIOpacity);
+        opacity.opacity = 255;
+
+        const transform = mask.getComponent(UITransform);
+        const graphics = mask.getComponent(Graphics);
+        if (!transform || !graphics) return;
+
+        const { width, height } = transform.contentSize;
+        const { x, y } = transform.anchorPoint;
+        graphics.clear();
+        graphics.fillColor = new Color(0, 0, 0, 255);
+        graphics.rect(-width * x, -height * y, width, height);
+        graphics.fill();
+    }
+
+    private hideLoadingMask(): void {
+        const mask = this.worldNode.parent?.getChildByName('LoadingMask');
+        if (mask) mask.active = false;
     }
 
     private rollPlayerToSpawn(): void {

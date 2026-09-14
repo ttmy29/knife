@@ -363,11 +363,14 @@ export class Grid extends Component {
         const preferredDistance = Math.max(this.tileSize, preferredMoveDistance);
         const searchRadius = Math.ceil((preferredDistance + this.tileSize * 4) / this.tileSize);
         const startHeight = this.getHeight(startCell.x, startCell.y);
-        const blocked = (col: number, row: number): boolean =>
-            !this.inBounds(col, row)
-            || this.isWall(col, row)
-            || this.isMonsterAt(col, row)
-            || this.isChestAt(col, row);
+        const blocked = (col: number, row: number): boolean => {
+            if (!this.inBounds(col, row) || this.isWall(col, row) || this.isChestAt(col, row)) {
+                return true;
+            }
+            // 角色可能站在当前战斗怪物的大占格范围内；允许从该占格向外闪避。
+            const occupant = this.getMonsterAt(col, row);
+            return !!occupant && occupant !== monster;
+        };
         const visuallyBlocked = (col: number, row: number): boolean =>
             !this.inBounds(col, row)
             || this.isWall(col, row)

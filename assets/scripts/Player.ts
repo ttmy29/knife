@@ -71,7 +71,7 @@ export class Player extends Component {
     private currentAnimSkeletons: sp.Skeleton[] = [];
     private mountSkeletons: sp.Skeleton[] = [];
     private mountActive = false;
-    private readonly mountSpineChildNames = ['31201', '31201_mount'];
+    private readonly mountSpineChildNames = ['31201_mount'];
     private readonly attackEffects = new Map<number, sp.Skeleton>();
     private activeAttackEffect: sp.Skeleton | null = null;
     private animationTimeScale = 1;
@@ -84,9 +84,6 @@ export class Player extends Component {
     private pulseScale = 1;
     private spineNode: Node | null = null;
     private dodgeFollowNodes: DodgeFollowNode[] = [];
-    private expWhiteGlow: Node | null = null;
-    private hideExpWhiteGlowTask: (() => void) | null = null;
-    private readonly expWhiteGlowPadding = 80;
     /** 失败后禁止再移动 / 寻路 */
     public dead = false;
 
@@ -131,7 +128,8 @@ export class Player extends Component {
         this.setupDodgeFollowNodes();
         this.skeletons = this.collectPlayerSkeletons();
         this.setupAttackEffects();
-        this.setupExpWhiteGlow();
+        const expWhiteGlow = this.node.getChildByName('ExpWhiteGlow');
+        if (expWhiteGlow) expWhiteGlow.active = false;
         this.dead = false;
         this.applyFacing();
         this.node.setPosition(grid.gridToWorld(col, row));
@@ -156,8 +154,15 @@ export class Player extends Component {
             const child = this.spineNode.getChildByName(childName);
             if (child) child.active = true;
         }
+        const mountBody = this.spineNode
+            .getChildByName('31201_mount')
+            ?.getChildByName('31201');
+        if (mountBody) mountBody.active = true;
         this.mountSkeletons = this.collectMountSkeletons();
-        this.syncMountAnimation(this.moving ? 'run' : 'idle');
+        // 上坐骑时强制刷新动画：移动中的角色立即改为 idle，坐骑与挂点驱动播放 run。
+        this.animName = '';
+        if (this.moving) this.playRun();
+        else this.playIdle();
     }
 
     /** 战斗后战力变化时同步头顶 Label */
@@ -346,10 +351,12 @@ export class Player extends Component {
         if (this.animName === name) return;
         if (name !== 'dodge') this.resetDodgeFollowNodes();
         this.animName = name;
+        // 骑乘移动时角色保持 idle，坐骑本体与挂点驱动骨骼播放 run。
+        const playerAnimation = this.mountActive && name === 'run' ? 'idle' : name;
         this.currentAnimSkeletons = [];
         for (const sk of skeletons) {
-            if (!sk || !sk.isValid || !this.hasSkeletonAnimation(sk, name)) continue;
-            sk.setAnimation(0, name, loop);
+            if (!sk || !sk.isValid || !this.hasSkeletonAnimation(sk, playerAnimation)) continue;
+            sk.setAnimation(0, playerAnimation, loop);
             this.currentAnimSkeletons.push(sk);
         }
         if (name === 'idle' || name === 'run') {
@@ -378,14 +385,8 @@ export class Player extends Component {
     }
 
     private isMountSkeleton(node: Node): boolean {
-        let current: Node | null = node;
-        while (current && current !== this.spineNode) {
-            if (current.name === 'rider') return false;
-            if (current.name === '31201') return true;
-            if (current.name === '31201_mount') return true;
-            current = current.parent;
-        }
-        return false;
+        // rider_back / rider_front 虽然在 31201_mount 下，仍属于角色骨骼。
+        return node.name === '31201' || node.name === '31201_mount';
     }
 
     private syncMountAnimation(name: 'idle' | 'run'): void {
@@ -393,6 +394,7 @@ export class Player extends Component {
         for (const skeleton of this.mountSkeletons) {
             if (!skeleton || !skeleton.isValid || !this.hasSkeletonAnimation(skeleton, name)) continue;
             skeleton.timeScale = this.animationTimeScale;
+            // 31201_mount 必须与可见坐骑同步，才能驱动 gd / gd2 / gd3 三个挂点。
             skeleton.setAnimation(0, name, true);
         }
     }
@@ -485,8 +487,18 @@ export class Player extends Component {
         onImpact?: () => void,
         onSound?: () => void,
         playSound = true,
+        playEffect = true,
     ): void {
-        this.playAttackAnimation(this.attackAnimation, onComplete, onImpact, onSound, undefined, undefined, playSound);
+        this.playAttackAnimation(
+            this.attackAnimation,
+            onComplete,
+            onImpact,
+            onSound,
+            undefined,
+            undefined,
+            playSound,
+            playEffect,
+        );
     }
 
     /** 单次覆盖攻击动画，不改变普通攻击配置。 */
@@ -498,9 +510,11 @@ export class Player extends Component {
         soundDelay: number = this.attackSoundDelay,
         impactDelay: number = this.attackImpactDelay,
         playSound = true,
+        playEffect = true,
     ): void {
         this.playAnim(animation, false);
-        this.playAttackEffect(animation);
+        if (playEffect) this.playAttackEffect(animation);
+        else this.hideAttackEffectsGroups();
         const playAttackSound = () => {
             if (this.events && this.events.onAttack) this.events.onAttack(this.attackSound);
             if (onSound) onSound();
@@ -528,7 +542,7 @@ export class Player extends Component {
 
     private setupAttackEffects(effectsNodeName = 'Effects'): void {
         this.attackEffects.clear();
-        const effectsNode = this.node.getChildByName(effectsNodeName);
+        const effectsNode = this.getAttackEffectsNode(effectsNodeName);
         this.hideAttackEffectsGroups();
         if (!effectsNode) return;
 
@@ -541,6 +555,14 @@ export class Player extends Component {
         }
     }
 
+    private getAttackEffectsNode(effectsNodeName: string): Node | null {
+        return this.node.getChildByName(effectsNodeName)
+            || this.spineNode
+                ?.getChildByName('31201_mount')
+                ?.getChildByName(effectsNodeName)
+            || null;
+    }
+
     private hideAttackEffectsGroups(): void {
         if (this.activeAttackEffect && this.activeAttackEffect.node && this.activeAttackEffect.node.isValid) {
             this.activeAttackEffect.setEventListener(() => {});
@@ -548,9 +570,13 @@ export class Player extends Component {
             this.activeAttackEffect.node.active = false;
             this.activeAttackEffect = null;
         }
-        for (const child of this.node.children) {
-            if (!/^Effects\d*$/.test(child.name)) continue;
-            child.active = false;
+        const mountNode = this.spineNode?.getChildByName('31201_mount') || null;
+        const effectParents = mountNode ? [this.node, mountNode] : [this.node];
+        for (const parent of effectParents) {
+            for (const child of parent.children) {
+                if (!/^Effects\d*$/.test(child.name)) continue;
+                child.active = false;
+            }
         }
     }
 
@@ -590,104 +616,13 @@ export class Player extends Component {
         if (onComplete) this.onceAnimComplete(onComplete);
     }
 
-    /** 收到经验球反馈：白光短闪 + 0.1s 缩放变 1.2，再 0.1s 恢复 */
+    /** 收到经验球反馈：0.1s 缩放变 1.2，再 0.1s 恢复。 */
     playExpPulse(): void {
-        this.playExpWhiteGlow();
         this.pulseScale = 1;
         tween(this)
             .to(0.1, { pulseScale: 1.2 }, { easing: 'quadOut', onUpdate: () => this.applyFacing() })
             .to(0.1, { pulseScale: 1 }, { easing: 'quadIn', onUpdate: () => this.applyFacing() })
             .start();
-    }
-
-    private setupExpWhiteGlow(): void {
-        this.expWhiteGlow = this.node.getChildByName('ExpWhiteGlow');
-        if (!this.expWhiteGlow) return;
-        this.syncExpWhiteGlowBounds();
-        this.assignExpWhiteGlowTarget();
-        this.expWhiteGlow.active = false;
-    }
-
-    private assignExpWhiteGlowTarget(): void {
-        if (!this.expWhiteGlow || !this.spineNode) return;
-        const snapshot = this.expWhiteGlow.getComponent('Snapshot') as any;
-        if (snapshot) {
-            snapshot.snapshotLayer = 26;
-            snapshot.target = this.spineNode;
-        }
-    }
-
-    private playExpWhiteGlow(): void {
-        if (!this.expWhiteGlow) this.setupExpWhiteGlow();
-        if (!this.expWhiteGlow || !this.spineNode) return;
-
-        this.syncExpWhiteGlowBounds();
-        this.assignExpWhiteGlowTarget();
-        if (this.hideExpWhiteGlowTask) {
-            this.unschedule(this.hideExpWhiteGlowTask);
-            this.hideExpWhiteGlowTask = null;
-        }
-
-        this.expWhiteGlow.active = true;
-        this.hideExpWhiteGlowTask = () => {
-            if (this.expWhiteGlow && this.expWhiteGlow.isValid) this.expWhiteGlow.active = false;
-            this.hideExpWhiteGlowTask = null;
-        };
-        this.scheduleOnce(this.hideExpWhiteGlowTask, 0.2);
-    }
-
-    private syncExpWhiteGlowBounds(): void {
-        if (!this.expWhiteGlow || !this.spineNode) return;
-
-        const roleUI = this.node.getComponent(UITransform);
-        const glowUI = this.expWhiteGlow.getComponent(UITransform);
-        if (!roleUI || !glowUI) return;
-
-        let minX = Infinity;
-        let minY = Infinity;
-        let maxX = -Infinity;
-        let maxY = -Infinity;
-        const temp = new Vec3();
-
-        const collect = (node: Node) => {
-            const ui = node.getComponent(UITransform);
-            if (ui && node !== this.expWhiteGlow) {
-                const width = ui.width;
-                const height = ui.height;
-                const left = -ui.anchorX * width;
-                const right = (1 - ui.anchorX) * width;
-                const bottom = -ui.anchorY * height;
-                const top = (1 - ui.anchorY) * height;
-                const corners = [
-                    new Vec3(left, bottom, 0),
-                    new Vec3(left, top, 0),
-                    new Vec3(right, bottom, 0),
-                    new Vec3(right, top, 0),
-                ];
-                for (const corner of corners) {
-                    const world = ui.convertToWorldSpaceAR(corner);
-                    roleUI.convertToNodeSpaceAR(world, temp);
-                    minX = Math.min(minX, temp.x);
-                    minY = Math.min(minY, temp.y);
-                    maxX = Math.max(maxX, temp.x);
-                    maxY = Math.max(maxY, temp.y);
-                }
-            }
-            for (const child of node.children) collect(child);
-        };
-        collect(this.spineNode);
-
-        if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) return;
-
-        const width = Math.max(1, maxX - minX + this.expWhiteGlowPadding);
-        const height = Math.max(1, maxY - minY + this.expWhiteGlowPadding);
-        this.expWhiteGlow.setPosition((minX + maxX) * 0.5, (minY + maxY) * 0.5, 0);
-        this.expWhiteGlow.setScale(this.facing < 0 ? -1 : 1, 1, 1);
-        glowUI.setAnchorPoint(0.5, 0.5);
-        glowUI.setContentSize(width, height);
-
-        const snapshot = this.expWhiteGlow.getComponent('Snapshot') as any;
-        if (snapshot && snapshot.updateSize) snapshot.updateSize();
     }
 
     private onceAnimComplete(cb: () => void): void {

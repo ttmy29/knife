@@ -73,7 +73,7 @@ export class ChestController {
         }
     }
 
-    async spawnEquipmentItems(): Promise<void> {
+    async spawnEquipmentItems(names: readonly EquipmentName[] = ['dachui', 'dao', 'kuijia', 'toukui', 'mount']): Promise<void> {
         const boxLayer = this.worldNode.getChildByName('boxLayer');
         const grid = this.getGrid();
         if (!boxLayer || !grid) return;
@@ -86,7 +86,8 @@ export class ChestController {
             { name: 'mount', x: 35, y: 385, create: () => PrefabManager.createMount() },
         ];
 
-        await Promise.all(items.map(async (item) => {
+        const requestedNames = new Set<EquipmentName>(names);
+        await Promise.all(items.filter(item => requestedNames.has(item.name)).map(async (item) => {
             try {
                 const node = await item.create();
                 node.name = item.name;
@@ -219,8 +220,6 @@ export class ChestController {
         } else if (equipment === 'mount') {
             this.setFirstSpineChildActive(spineNode, '31201', true);
             this.setFirstSpineChildActive(spineNode, '31201_mount', true);
-            this.setFirstSpineChildActive(equipmentRoot, '30301_l', false);
-            this.setFirstSpineChildActive(equipmentRoot, '30301_r', false);
         }
 
         player.refreshSpineSkeletons();

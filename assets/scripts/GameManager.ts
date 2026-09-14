@@ -1,6 +1,6 @@
 import {
     _decorator, Component, Node, Graphics,
-    Color, Vec3, Camera, sp, UIOpacity, UITransform,
+    Color, Vec3, Camera, sp, UITransform,
 } from 'cc';
 import { Grid } from './Grid';
 import { Monster } from './Monster';
@@ -22,8 +22,9 @@ import { ResultPanelController } from './ResultPanelController';
 import { TargetHintController } from './TargetHintController';
 import { Level1 } from './GameConfig';
 import { AudioManager } from './core/AudioManager';
+import { BundleManager } from './core/BundleManager';
 import { PrefabManager } from './core/PrefabManager';
-import { AttackAudioType } from './config/ResourceConfig';
+import { AttackAudioType, ResourcePath } from './config/ResourceConfig';
 import { BaseRoleSpecialBattleConfig } from './config/PlayerRoleConfig';
 import { DodgeConfig } from './config/DodgeConfig';
 import { GameAssets } from './GameAssets';
@@ -66,12 +67,13 @@ export class GameManager extends Component {
     private openingSequence: OpeningSequenceController | null = null;
     private targetHint: TargetHintController | null = null;
     private hitEffectsNode: Node | null = null;
+    private backgroundAssetsReady = false;
+    private openingFinished = false;
 
     onLoad(): void {
         PrefabManager.init(this.gameAssets);
         AudioManager.init(this.node, this.gameAssets);
         AudioManager.playBgm();
-        AudioManager.playRoar();
         this.setupHitEffectsNode();
 
         const canvas = this.node.parent;
@@ -108,8 +110,8 @@ export class GameManager extends Component {
             () => this.getPlayerSpawnLocalPosition(),
             () => this.assignCameraTarget(),
             () => {
-                this.monsterGuide?.flushPending();
-                this.targetHint?.show();
+                this.openingFinished = true;
+                this.tryUnlockGameplay();
             },
         );
         this.openingSequence.init();
@@ -139,7 +141,7 @@ export class GameManager extends Component {
             (roleType) => this.playerRoles?.switchPlayerRole(this.player, roleType),
             (player, roleType, playIntro) => this.playerRoles?.applyPlayerRoleProfile(player, roleType, playIntro),
             (node, openingActive) => this.monsterGuide?.requestStartForNode(node, openingActive),
-            () => this.openingSequence?.active || false,
+            () => (this.openingSequence?.active || false) || !this.backgroundAssetsReady,
         );
         this.buildPathLine();
         this.monsterController.setupRenderLayers();
@@ -232,44 +234,112 @@ export class GameManager extends Component {
             console.error('[GameManager] load role prefabs failed', err);
             this.playerRoles?.spawnInitialPlayer();
         }
-
-        try {
-            await Promise.all([
-                PrefabManager.loadRole1(),
-                PrefabManager.loadRole2(),
-                PrefabManager.loadRole3(),
-                PrefabManager.loadFail(),
-                PrefabManager.loadVictory(),
-            ]);
-        } catch (err) {
-            console.error('[GameManager] load result prefabs failed', err);
-        }
     }
 
-    /** 并行完成所有开场资源实例化，再开始 Boss 演出，避免加载与镜头移动争抢帧时间。 */
-    private async loadOpeningScene(): Promise<void> {
+    /** 进入场景后并行预载第二批资源。 */
+    private async preloadBackgroundAssets(): Promise<void> {
+        const audioKeys = [
+            'attack1', 'attack2', 'attack3',
+            'smallAttack', 'bigAttack',
+            'monsterDie', 'expCollect', 'levelUp', 'cheer',
+            'help1', 'heHa', 'bossAttack', 'bossDie', 'victory',
+        ] as const;
+        const tasks: Promise<unknown>[] = [
+            PrefabManager.loadRole3(),
+            PrefabManager.loadMonster('monster3'),
+            PrefabManager.loadMonster('monster4'),
+            PrefabManager.loadMonster('monster5'),
+            PrefabManager.loadEquipment('dachui'),
+            PrefabManager.loadEquipment('kuijia'),
+            PrefabManager.loadEquipment('toukui'),
+            PrefabManager.loadEquipment('mount'),
+            this.loadHitEffectAsset(
+                this.gameAssets.hit100001Attack2,
+                ResourcePath.Spine.Hit.Attack2,
+                asset => { this.gameAssets.hit100001Attack2 = asset; },
+            ),
+            this.loadHitEffectAsset(
+                this.gameAssets.hit100001Attack4,
+                ResourcePath.Spine.Hit.Attack4,
+                asset => { this.gameAssets.hit100001Attack4 = asset; },
+            ),
+            this.loadHitEffectAsset(
+                this.gameAssets.hit10009Attack4,
+                ResourcePath.Spine.Hit.ChargeAttack4,
+                asset => { this.gameAssets.hit10009Attack4 = asset; },
+            ),
+            AudioManager.preload(audioKeys),
+            PrefabManager.loadVictory(),
+        ];
+
+        await Promise.all(tasks.map(async task => {
+            try {
+                await task;
+            } catch (err) {
+                console.error('[GameManager] preload background asset failed', err);
+            }
+        }));
+    }
+
+    private async loadHitEffectAsset(
+        current: sp.SkeletonData | null,
+        path: string,
+        assign: (asset: sp.SkeletonData) => void,
+    ): Promise<void> {
+        const asset = current && current.isValid
+            ? current
+            : await BundleManager.loadAsset(ResourcePath.Bundle.Roles, path, sp.SkeletonData);
+        assign(asset);
+    }
+
+    private async finishBackgroundLoading(preloadTask: Promise<void>): Promise<void> {
+        await preloadTask;
         try {
             await Promise.all([
-                this.loadStartupPrefabs(),
-                this.monsterController ? this.monsterController.spawnMonsters() : Promise.resolve(),
-                this.chests ? this.chests.spawnInitialChest() : Promise.resolve(),
-                this.chests ? this.chests.spawnEquipmentItems() : Promise.resolve(),
-                AudioManager.preloadFinalBossSounds(),
-                AudioManager.preloadRoleDie(),
-                this.openingSequence?.active
-                    ? Promise.all([
-                        AudioManager.preloadHelpSounds(),
-                        AudioManager.preloadShout(),
-                        AudioManager.preloadRoleBehit(),
-                    ])
+                this.monsterController
+                    ? this.monsterController.spawnMonsters(['monster3', 'monster4', 'monster5'], false)
+                    : Promise.resolve(),
+                this.chests
+                    ? this.chests.spawnEquipmentItems(['dachui', 'kuijia', 'toukui', 'mount'])
                     : Promise.resolve(),
             ]);
         } catch (err) {
-            console.error('[GameManager] opening scene load failed', err);
+            console.error('[GameManager] create background scene objects failed', err);
         }
+        this.backgroundAssetsReady = true;
+        this.tryUnlockGameplay();
+    }
+
+    private tryUnlockGameplay(): void {
+        if (!this.backgroundAssetsReady || !this.openingFinished) return;
+        this.monsterGuide?.flushPending();
+        this.targetHint?.show();
+    }
+
+    /** 先创建直绑场景资源并优先加载 role，再并行加载其余资源，全部完成后开始开场演出。 */
+    private async loadOpeningScene(): Promise<void> {
+        const loadingMaskDelay = this.openingSequence?.waitForLoadingMask() || Promise.resolve();
+        const directSceneTask = Promise.all([
+            this.monsterController
+                ? this.monsterController.spawnMonsters(['monster1', 'monster2', 'monster6'])
+                : Promise.resolve(),
+            this.chests ? this.chests.spawnInitialChest() : Promise.resolve(),
+            this.chests ? this.chests.spawnEquipmentItems(['dao']) : Promise.resolve(),
+        ]).catch(err => {
+            console.error('[GameManager] direct opening scene load failed', err);
+        });
+        const roleLoadingTask = this.loadStartupPrefabs();
+        const backgroundLoadingTask = roleLoadingTask.then(() => {
+            return this.finishBackgroundLoading(this.preloadBackgroundAssets());
+        });
+
+        await loadingMaskDelay;
+        await Promise.all([directSceneTask, roleLoadingTask, backgroundLoadingTask]);
+        AudioManager.playRoar();
 
         if (!this.openingSequence?.active) {
-            this.targetHint?.show();
+            this.openingFinished = true;
+            this.tryUnlockGameplay();
             return;
         }
         const monster = this.monsterController?.getOpeningMonster()
@@ -280,7 +350,8 @@ export class GameManager extends Component {
         }
         this.openingSequence?.deactivate();
         this.assignCameraTarget();
-        this.targetHint?.show();
+        this.openingFinished = true;
+        this.tryUnlockGameplay();
     }
 
     /** 绑定角色事件（初�?/ 切换 role1 后复用） */
@@ -403,6 +474,7 @@ export class GameManager extends Component {
             onComplete?: () => void,
             onImpact?: () => void,
             playSound = true,
+            playEffect = true,
         ): void => {
             if (!this.player) return;
             if (useAttack3) {
@@ -414,8 +486,9 @@ export class GameManager extends Component {
                     BaseRoleSpecialBattleConfig.attackSoundDelay,
                     BaseRoleSpecialBattleConfig.attackImpactDelay,
                     playSound,
+                    playEffect,
                 );
-            } else this.player.playAttack(onComplete, onImpact, undefined, playSound);
+            } else this.player.playAttack(onComplete, onImpact, undefined, playSound, playEffect);
         };
         const win = this.player.power > monster.power;
         const rewardPower = monster.power;

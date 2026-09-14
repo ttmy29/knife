@@ -1,7 +1,7 @@
 import { Camera, Component, Label, Node, view } from 'cc';
 import { Grid } from './Grid';
 import { Monster } from './Monster';
-import { Level1 } from './GameConfig';
+import { Level1, MonsterPrefabType } from './GameConfig';
 import { MonsterGlowController } from './MonsterGlowController';
 import { OpeningSequenceConfig } from './config/OpeningSequenceConfig';
 import {
@@ -50,19 +50,30 @@ export class MonsterController {
         this.labelLayer.setSiblingIndex(this.worldNode.children.length - 1);
     }
 
-    async spawnMonsters(): Promise<void> {
+    async spawnMonsters(prefabTypes?: readonly MonsterPrefabType[], reset = true): Promise<void> {
         const container = this.worldNode.getChildByName('Monsters');
         const grid = this.getGrid();
         if (!container || !grid) return;
-        for (const child of container.children) child.active = false;
+        if (reset) {
+            for (const child of container.children) child.active = false;
+        }
 
-        let highestMonster: Monster | null = null;
+        const requestedTypes = prefabTypes ? new Set<MonsterPrefabType>(prefabTypes) : null;
+        let highestMonster: Monster | null = this.monsters.reduce<Monster | null>(
+            (highest, monster) => !highest || monster.power > highest.power ? monster : highest,
+            null,
+        );
         const spawnFadeTasks: Promise<void>[] = [];
-        this.finalMonster = null;
-        this.openingMonster = null;
-        this.monsters = [];
+        if (reset) {
+            this.finalMonster = null;
+            this.openingMonster = null;
+            this.monsters = [];
+            highestMonster = null;
+        }
 
         for (const data of Level1.monsters) {
+            if (requestedTypes && !requestedTypes.has(data.prefab)) continue;
+            if (this.monsters.some(monster => monster.node.name === data.name)) continue;
             let child: Node;
             try {
                 child = await PrefabManager.createMonster(data.prefab);
@@ -95,15 +106,14 @@ export class MonsterController {
             const isOpeningMonster = data.name === OpeningSequenceConfig.targetMonsterName;
             if (isOpeningMonster) {
                 this.openingMonster = monster;
-                if (this.isOpeningSequenceActive()) {
-                    monster.node.active = false;
-                    monster.setPresentationActive(false);
-                }
             }
 
             this.monsters.push(monster);
             this.updateViewportVisibilityFor(monster);
-            if (!isOpeningMonster || !this.isOpeningSequenceActive()) {
+            if (isOpeningMonster && this.isOpeningSequenceActive()) {
+                // 开场怪物使用直绑资源，创建后立即显示，不等待其余 Bundle 资源。
+                monster.playSpawnFade(0, () => monster.activateOnGrid());
+            } else {
                 spawnFadeTasks.push(new Promise(resolve => {
                     monster.playSpawnFade(MonsterSpawnConfig.fadeDuration, () => {
                         monster.activateOnGrid();

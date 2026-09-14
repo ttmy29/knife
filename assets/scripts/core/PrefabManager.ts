@@ -1,6 +1,8 @@
 import { instantiate, Node, Prefab } from 'cc';
 import type { MonsterPrefabType } from '../GameConfig';
 import { GameAssets, GamePrefabKey } from '../GameAssets';
+import { ResourcePath } from '../config/ResourceConfig';
+import { BundleManager } from './BundleManager';
 
 type PrefabKey =
     | 'role'
@@ -17,6 +19,30 @@ type PrefabKey =
     | 'toukui'
     | 'mount'
     | MonsterPrefabType;
+
+export type EquipmentPrefabType = 'dachui' | 'kuijia' | 'toukui' | 'mount';
+
+const PREFAB_LOAD_CONFIG: Record<PrefabKey, { bundle: string; path: string }> = {
+    role: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Role },
+    role1: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Role1 },
+    role2: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Role2 },
+    role3: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Role3 },
+    fail: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Fail },
+    victory: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Victory },
+    box: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Box },
+    powerSuit: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.PowerSuit },
+    dao: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Dao },
+    dachui: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Dachui },
+    kuijia: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Kuijia },
+    toukui: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Toukui },
+    mount: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Mount },
+    monster1: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster1 },
+    monster2: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster2 },
+    monster3: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster3 },
+    monster4: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster4 },
+    monster5: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster5 },
+    monster6: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster6 },
+};
 
 export class PrefabManager {
     private static assets: GameAssets | null = null;
@@ -67,6 +93,10 @@ export class PrefabManager {
             this.loadPrefab('toukui'),
             this.loadPrefab('mount'),
         ]);
+    }
+
+    static loadEquipment(type: EquipmentPrefabType): Promise<Prefab> {
+        return this.loadPrefab(type);
     }
 
     static loadMonster(type: MonsterPrefabType): Promise<Prefab> {
@@ -134,11 +164,15 @@ export class PrefabManager {
         if (cached && cached.isValid) return cached;
 
         const prefab = this.assets?.getPrefab(key as GamePrefabKey);
-        if (!prefab || !prefab.isValid) {
-            throw new Error(`[PrefabManager] prefab is not bound in GameAssets: ${key}`);
+        if (prefab && prefab.isValid) {
+            this.prefabCache.set(key, prefab);
+            return prefab;
         }
-        this.prefabCache.set(key, prefab);
-        return prefab;
+
+        const config = PREFAB_LOAD_CONFIG[key];
+        const loaded = await BundleManager.loadAsset(config.bundle, config.path, Prefab);
+        this.prefabCache.set(key, loaded);
+        return loaded;
     }
 
     private static createLoadedPrefab(key: PrefabKey): Node {

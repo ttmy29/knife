@@ -131,6 +131,11 @@ export const ResourcePath = {
     },
 
     Spine: {
+        Hit: {
+            Attack2: 'roles/effect/hit/100001_hit_2',
+            Attack4: 'roles/effect/hit/100001_hit_4',
+            ChargeAttack4: 'roles/effect/hit/10009_hit_4',
+        },
         Role: {
             OrcHero: [
                 'roles/兽人主角/100001',

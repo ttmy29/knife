@@ -6,6 +6,9 @@
   "files": [],
   "subMetas": {},
   "userData": {
-    "isBundle": false
+    "isBundle": true,
+    "bundleConfigID": "default",
+    "bundleName": "monsters",
+    "priority": 1
   }
 }

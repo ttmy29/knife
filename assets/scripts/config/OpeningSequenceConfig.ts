@@ -1,4 +1,6 @@
 export interface OpeningSequenceProfile {
+    /** 进入游戏后保持黑屏并用于预加载资源的时间（秒）。 */
+    loadingMaskDuration: number;
     /** 开场执行攻击动作的怪物名称。 */
     targetMonsterName: string;
     /** 开场怪物开始攻击后，延迟播放角色受击音效的时间（秒）。 */
@@ -40,6 +42,7 @@ export interface OpeningSequenceProfile {
 }
 
 export const OpeningSequenceConfig: OpeningSequenceProfile = {
+    loadingMaskDuration: 1,
     targetMonsterName: 'monster1',
     playerHitSoundDelay: 1,
     firstHelpSoundDelay: 5,

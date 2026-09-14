@@ -2,6 +2,7 @@ import { Asset, assetManager, error } from 'cc';
 
 export class BundleManager {
     private static readonly bundles = new Map<string, any>();
+    private static readonly bundleLoadTasks = new Map<string, Promise<any>>();
     private static readonly assetCache = new Map<string, Asset>();
 
     static loadBundle(bundleName: string): Promise<any> {
@@ -11,8 +12,12 @@ export class BundleManager {
             return Promise.resolve(cached);
         }
 
-        return new Promise((resolve, reject) => {
+        const pending = this.bundleLoadTasks.get(bundleName);
+        if (pending) return pending;
+
+        const task = new Promise<any>((resolve, reject) => {
             assetManager.loadBundle(bundleName, (err, bundle) => {
+                this.bundleLoadTasks.delete(bundleName);
                 if (err || !bundle) {
                     error(`[BundleManager] load bundle failed: ${bundleName}`, err);
                     reject(err);
@@ -23,6 +28,8 @@ export class BundleManager {
                 resolve(bundle);
             });
         });
+        this.bundleLoadTasks.set(bundleName, task);
+        return task;
     }
 
     static getBundle(bundleName: string): any | null {
