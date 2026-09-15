@@ -1,0 +1,34 @@
+
+烈火金轮.png
+size: 647,255
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+backfire
+  rotate: false
+  xy: 454, 2
+  size: 60, 59
+  orig: 60, 59
+  offset: 0, 0
+  index: -1
+dagger01
+  rotate: false
+  xy: 2, 2
+  size: 252, 251
+  orig: 260, 260
+  offset: 4, 5
+  index: -1
+fire04
+  rotate: false
+  xy: 256, 51
+  size: 196, 202
+  orig: 210, 221
+  offset: 7, 13
+  index: -1
+fire05
+  rotate: false
+  xy: 454, 63
+  size: 191, 190
+  orig: 207, 217
+  offset: 9, 19
+  index: -1

@@ -1,0 +1,188 @@
+
+男主角.png
+size: 2015, 723
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+Weapon1
+  rotate: false
+  xy: 1478, 13
+  size: 206, 174
+  orig: 208, 176
+  offset: 1, 1
+  index: -1
+Weapon2
+  rotate: true
+  xy: 2, 62
+  size: 659, 382
+  orig: 661, 384
+  offset: 1, 1
+  index: -1
+Weapon3
+  rotate: true
+  xy: 386, 252
+  size: 469, 143
+  orig: 471, 148
+  offset: 1, 1
+  index: -1
+Weapon5
+  rotate: true
+  xy: 1314, 452
+  size: 269, 264
+  orig: 271, 266
+  offset: 1, 1
+  index: -1
+Weapon6
+  rotate: true
+  xy: 1135, 365
+  size: 356, 177
+  orig: 361, 179
+  offset: 4, 1
+  index: -1
+Weapon7
+  rotate: false
+  xy: 1580, 556
+  size: 267, 165
+  orig: 270, 179
+  offset: 2, 9
+  index: -1
+Weapon8
+  rotate: false
+  xy: 1256, 10
+  size: 220, 353
+  orig: 222, 355
+  offset: 1, 1
+  index: -1
+Weapon9
+  rotate: true
+  xy: 907, 352
+  size: 369, 226
+  orig: 371, 228
+  offset: 1, 1
+  index: -1
+刘海
+  rotate: false
+  xy: 932, 5
+  size: 212, 345
+  orig: 212, 345
+  offset: 0, 0
+  index: -1
+剑鞘
+  rotate: false
+  xy: 1686, 35
+  size: 200, 101
+  orig: 202, 103
+  offset: 1, 1
+  index: -1
+右手
+  rotate: true
+  xy: 1795, 138
+  size: 116, 209
+  orig: 116, 213
+  offset: 0, 4
+  index: -1
+右腿
+  rotate: false
+  xy: 1849, 464
+  size: 157, 257
+  orig: 157, 257
+  offset: 0, 0
+  index: -1
+头
+  rotate: false
+  xy: 531, 287
+  size: 374, 434
+  orig: 376, 436
+  offset: 1, 1
+  index: -1
+头发
+  rotate: false
+  xy: 611, 13
+  size: 319, 272
+  orig: 319, 272
+  offset: 0, 0
+  index: -1
+左手
+  rotate: false
+  xy: 386, 62
+  size: 127, 188
+  orig: 150, 189
+  offset: 0, 1
+  index: -1
+左腿
+  rotate: false
+  xy: 515, 3
+  size: 94, 247
+  orig: 94, 247
+  offset: 0, 0
+  index: -1
+影子
+  rotate: true
+  xy: 1146, 8
+  size: 355, 108
+  orig: 365, 119
+  offset: 4, 6
+  index: -1
+胯
+  rotate: false
+  xy: 1314, 374
+  size: 138, 76
+  orig: 140, 78
+  offset: 1, 1
+  index: -1
+衣领
+  rotate: true
+  xy: 279, 9
+  size: 51, 36
+  orig: 54, 38
+  offset: 2, 1
+  index: -1
+裙摆1
+  rotate: false
+  xy: 1580, 360
+  size: 239, 194
+  orig: 239, 194
+  offset: 0, 0
+  index: -1
+裙摆2
+  rotate: false
+  xy: 1478, 338
+  size: 92, 112
+  orig: 92, 112
+  offset: 0, 0
+  index: -1
+裙摆3
+  rotate: true
+  xy: 1821, 256
+  size: 206, 192
+  orig: 206, 192
+  offset: 0, 0
+  index: -1
+身体
+  rotate: true
+  xy: 1572, 189
+  size: 169, 221
+  orig: 169, 221
+  offset: 0, 0
+  index: -1
+飘带1
+  rotate: false
+  xy: 2, 2
+  size: 182, 58
+  orig: 182, 62
+  offset: 0, 4
+  index: -1
+飘带2
+  rotate: true
+  xy: 317, 19
+  size: 41, 90
+  orig: 41, 90
+  offset: 0, 0
+  index: -1
+飘带3
+  rotate: true
+  xy: 186, 7
+  size: 53, 91
+  orig: 53, 91
+  offset: 0, 0
+  index: -1

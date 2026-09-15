@@ -40,8 +40,6 @@ const PREFAB_LOAD_CONFIG: Record<PrefabKey, { bundle: string; path: string }> = 
     monster2: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster2 },
     monster3: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster3 },
     monster4: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster4 },
-    monster5: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster5 },
-    monster6: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster6 },
 };
 
 export class PrefabManager {

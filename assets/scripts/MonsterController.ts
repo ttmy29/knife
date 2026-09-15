@@ -100,6 +100,7 @@ export class MonsterController {
 
             if (data.battleRadius !== undefined) monster.battleRadius = data.battleRadius;
             monster.setAttackAnimation(MonsterProfiles[data.prefab].attackAnimation);
+            monster.setDeathAnimation(MonsterProfiles[data.prefab].deathAnimation);
             monster.init(grid, false);
             this.movePresentationToLayers(monster);
 

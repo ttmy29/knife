@@ -57,8 +57,6 @@ export class GameAssets {
     @property(Prefab) monster2: Prefab | null = null;
     @property(Prefab) monster3: Prefab | null = null;
     @property(Prefab) monster4: Prefab | null = null;
-    @property(Prefab) monster5: Prefab | null = null;
-    @property(Prefab) monster6: Prefab | null = null;
 
     @property(Prefab) box: Prefab | null = null;
     @property(Prefab) powerSuit: Prefab | null = null;

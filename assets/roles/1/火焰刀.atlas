@@ -1,0 +1,125 @@
+
+火焰刀.png
+size: 1933,324
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+A_heibai_uv_00000
+  rotate: false
+  xy: 1593, 57
+  size: 77, 49
+  orig: 85, 55
+  offset: 4, 3
+  index: -1
+A_heibai_uv_00001
+  rotate: true
+  xy: 1881, 4
+  size: 78, 48
+  orig: 85, 55
+  offset: 4, 2
+  index: -1
+A_heibai_uv_00002
+  rotate: false
+  xy: 1593, 7
+  size: 77, 48
+  orig: 85, 55
+  offset: 5, 2
+  index: -1
+A_heibai_uv_00003
+  rotate: true
+  xy: 1881, 165
+  size: 79, 49
+  orig: 85, 55
+  offset: 4, 2
+  index: -1
+A_heibai_uv_00004
+  rotate: false
+  xy: 1751, 58
+  size: 79, 48
+  orig: 85, 55
+  offset: 3, 3
+  index: -1
+A_heibai_uv_00005
+  rotate: true
+  xy: 1881, 84
+  size: 79, 49
+  orig: 85, 55
+  offset: 2, 3
+  index: -1
+A_heibai_uv_00006
+  rotate: false
+  xy: 1672, 7
+  size: 76, 48
+  orig: 85, 55
+  offset: 4, 3
+  index: -1
+A_heibai_uv_00007
+  rotate: true
+  xy: 1832, 28
+  size: 78, 47
+  orig: 85, 55
+  offset: 3, 3
+  index: -1
+A_heibai_uv_00008
+  rotate: false
+  xy: 1751, 8
+  size: 79, 48
+  orig: 85, 55
+  offset: 2, 3
+  index: -1
+A_heibai_uv_00009
+  rotate: true
+  xy: 1881, 246
+  size: 76, 50
+  orig: 85, 55
+  offset: 4, 2
+  index: -1
+A_heibai_uv_00010
+  rotate: false
+  xy: 1672, 57
+  size: 77, 49
+  orig: 85, 55
+  offset: 4, 3
+  index: -1
+d1
+  rotate: false
+  xy: 648, 16
+  size: 323, 306
+  orig: 334, 332
+  offset: 0, 12
+  index: -1
+d2
+  rotate: true
+  xy: 973, 17
+  size: 305, 312
+  orig: 334, 332
+  offset: 11, 6
+  index: -1
+d3
+  rotate: false
+  xy: 2, 2
+  size: 324, 320
+  orig: 334, 332
+  offset: 4, 12
+  index: -1
+d4
+  rotate: false
+  xy: 328, 11
+  size: 318, 311
+  orig: 334, 332
+  offset: 7, 0
+  index: -1
+d5
+  rotate: false
+  xy: 1287, 20
+  size: 304, 302
+  orig: 334, 332
+  offset: 9, 14
+  index: -1
+dd
+  rotate: true
+  xy: 1593, 108
+  size: 214, 286
+  orig: 334, 332
+  offset: 93, 21
+  index: -1

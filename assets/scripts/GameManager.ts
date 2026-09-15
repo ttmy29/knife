@@ -19,7 +19,6 @@ import { PlayerInputController } from './PlayerInputController';
 import { PlayerRoleController } from './PlayerRoleController';
 import { RewardController } from './RewardController';
 import { ResultPanelController } from './ResultPanelController';
-import { TargetHintController } from './TargetHintController';
 import { Level1 } from './GameConfig';
 import { AudioManager } from './core/AudioManager';
 import { BundleManager } from './core/BundleManager';
@@ -52,7 +51,6 @@ export class GameManager extends Component {
     private pathLine: PathLine | null = null;
     private uiLayer: Node | null = null;
     private camera: Camera | null = null;
-    private hintCamera: Camera | null = null;
     private battling = false;
     private resultPanels: ResultPanelController | null = null;
     private rewards: RewardController | null = null;
@@ -65,7 +63,6 @@ export class GameManager extends Component {
     private monsterGlow: MonsterGlowController | null = null;
     private monsterGuide: MonsterGuideController | null = null;
     private openingSequence: OpeningSequenceController | null = null;
-    private targetHint: TargetHintController | null = null;
     private hitEffectsNode: Node | null = null;
     private backgroundAssetsReady = false;
     private openingFinished = false;
@@ -78,7 +75,6 @@ export class GameManager extends Component {
 
         const canvas = this.node.parent;
         this.camera = canvas ? canvas.getComponentInChildren(Camera) : null;
-        this.hintCamera = canvas ? canvas.getChildByName('Camera-001')?.getComponent(Camera) || null : null;
         if (this.camera) this.camera.orthoHeight = this.baseCameraOrthoHeight;
         this.monsterGlow = new MonsterGlowController(this, this.node);
         this.monsterGlow.init();
@@ -173,7 +169,6 @@ export class GameManager extends Component {
         this.openingSequence?.destroy();
         this.monsterGuide?.destroy();
         this.monsterGlow?.hide();
-        this.targetHint?.hide();
         this.rewards?.destroy();
         this.monsterController?.destroy();
         this.playerInput?.destroy();
@@ -248,7 +243,6 @@ export class GameManager extends Component {
             PrefabManager.loadRole3(),
             PrefabManager.loadMonster('monster3'),
             PrefabManager.loadMonster('monster4'),
-            PrefabManager.loadMonster('monster5'),
             PrefabManager.loadEquipment('dachui'),
             PrefabManager.loadEquipment('kuijia'),
             PrefabManager.loadEquipment('toukui'),
@@ -297,7 +291,7 @@ export class GameManager extends Component {
         try {
             await Promise.all([
                 this.monsterController
-                    ? this.monsterController.spawnMonsters(['monster3', 'monster4', 'monster5'], false)
+                    ? this.monsterController.spawnMonsters(['monster3', 'monster4'], false)
                     : Promise.resolve(),
                 this.chests
                     ? this.chests.spawnEquipmentItems(['dachui', 'kuijia', 'toukui', 'mount'])
@@ -313,7 +307,6 @@ export class GameManager extends Component {
     private tryUnlockGameplay(): void {
         if (!this.backgroundAssetsReady || !this.openingFinished) return;
         this.monsterGuide?.flushPending();
-        this.targetHint?.show();
     }
 
     /** 先创建直绑场景资源并优先加载 role，再并行加载其余资源，全部完成后开始开场演出。 */
@@ -321,7 +314,7 @@ export class GameManager extends Component {
         const loadingMaskDelay = this.openingSequence?.waitForLoadingMask() || Promise.resolve();
         const directSceneTask = Promise.all([
             this.monsterController
-                ? this.monsterController.spawnMonsters(['monster1', 'monster2', 'monster6'])
+                ? this.monsterController.spawnMonsters(['monster1', 'monster2'])
                 : Promise.resolve(),
             this.chests ? this.chests.spawnInitialChest() : Promise.resolve(),
             this.chests ? this.chests.spawnEquipmentItems(['dao']) : Promise.resolve(),
@@ -436,7 +429,6 @@ export class GameManager extends Component {
 
     update(dt: number): void {
         this.playerInput?.update(dt);
-        this.targetHint?.update(dt);
     }
 
     private buildUI(): void {
@@ -446,13 +438,6 @@ export class GameManager extends Component {
         if (!this.uiLayer) return;
         this.monsterGuide?.init(this.uiLayer);
         this.resultPanels = new ResultPanelController(this.uiLayer, this.camera);
-        this.targetHint = new TargetHintController(
-            this.node,
-            () => this.camera,
-            () => this.hintCamera,
-            () => this.player ? this.player.node : null,
-        );
-        this.targetHint.init(this.uiLayer);
     }
 
     // ---------------- 战斗（需�?4/12/13/14�?----------------
@@ -495,7 +480,6 @@ export class GameManager extends Component {
         const finalMonster = this.monsterController?.getFinalMonster();
         if (monster === finalMonster) {
             this.openingSequence?.stopHelpSounds();
-            this.targetHint?.hide();
         }
         let monsterHidden = false;
         const hideMonster = () => {
@@ -565,7 +549,6 @@ export class GameManager extends Component {
                 battleReleased = true;
                 this.battling = false;
                 if (this.activeBattleMonster === monster) this.activeBattleMonster = null;
-                if (monster === finalMonster) this.targetHint?.show();
             };
 
             const startDodge = () => {
@@ -612,7 +595,6 @@ export class GameManager extends Component {
         this.finalBossCinematic?.resetForResult();
         this.monsterGuide?.dismiss();
         this.monsterGlow?.hide();
-        this.targetHint?.hide();
         if (this.pathLine) this.pathLine.clear();
         if (this.player) {
             this.player.stop();

@@ -42,8 +42,6 @@ export const ResourcePath = {
         Monster2: 'monsters/monster/monster2',
         Monster3: 'monsters/monster/monster3',
         Monster4: 'monsters/monster/monster4',
-        Monster5: 'monsters/monster/monster5',
-        Monster6: 'monsters/monster/monster6',
         Monster3Shouji: 'monsters/monster3Spine/1000010shouji',
         Monster3Skill1: 'monsters/monster3Spine/1000010skill1',
 
@@ -122,9 +120,9 @@ export const ResourcePath = {
             SpineTextures: [
                 'monsters/地狱火/1070030',
                 'monsters/燃刃信徒/1000020',
-                'monsters/燃刃术士/1000010',
-                'monsters/燃刃术士/1000010shouji',
-                'monsters/燃刃术士/1000010skill1',
+                // 'monsters/燃刃术士/1000010',
+                // 'monsters/燃刃术士/1000010shouji',
+                // 'monsters/燃刃术士/1000010skill1',
                 'monsters/黑手铁卫士/1000530',
             ],
         },

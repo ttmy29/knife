@@ -46,6 +46,7 @@ export class Monster extends Component {
     private skeletons: sp.Skeleton[] = [];
     private animName = 'idle';
     private attackAnimation = 'phyattack';
+    private deathAnimation = 'die';
     private registeredOnGrid = false;
     private presentationActive = true;
     private viewportVisible = true;
@@ -203,8 +204,8 @@ export class Monster extends Component {
     /** 根据目标的世界 X 位置调整怪物画面朝向。 */
     faceToWorldX(worldX: number): void {
         const selfWorldX = this.node.worldPosition.x;
-        if (worldX < selfWorldX) this.setFacing(1);
-        else if (worldX > selfWorldX) this.setFacing(-1);
+        if (worldX < selfWorldX) this.setFacing(-1);
+        else if (worldX > selfWorldX) this.setFacing(1);
     }
 
     private setFacing(dir: number): void {
@@ -281,6 +282,10 @@ export class Monster extends Component {
         this.attackAnimation = name || 'phyattack';
     }
 
+    setDeathAnimation(name: string): void {
+        this.deathAnimation = name || 'die';
+    }
+
     setAnimationTimeScale(scale: number): void {
         const value = Math.max(0, scale);
         for (const skeleton of this.skeletons) {
@@ -326,7 +331,7 @@ export class Monster extends Component {
             for (const skeleton of this.skeletons) {
                 if (!skeleton || !skeleton.isValid) continue;
                 skeleton.setEventListener((_entry, event) => {
-                    if (hitTriggered || typeof event === 'number' || event.data?.name !== 'event_hit') return;
+                    if (hitTriggered || typeof event === 'number' || event.data?.name !== 'hit') return;
                     hitTriggered = true;
                     clearEventListeners();
                     onHit();
@@ -346,7 +351,8 @@ export class Monster extends Component {
 
     /** 死亡动画播完回调（播一次停在最后一帧） */
     playDie(onComplete?: () => void): void {
-        this.playAnim('die', false);
+        this.animName = '';
+        this.playAnim(this.deathAnimation, false);
         this.onceAnimComplete(onComplete);
     }
 

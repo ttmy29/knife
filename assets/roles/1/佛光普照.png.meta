@@ -1,0 +1,134 @@
+{
+  "ver": "1.0.27",
+  "importer": "image",
+  "imported": true,
+  "uuid": "5c71f496-9b0d-4040-af5a-6a230a11ec11",
+  "files": [
+    ".json",
+    ".png"
+  ],
+  "subMetas": {
+    "6c48a": {
+      "importer": "texture",
+      "uuid": "5c71f496-9b0d-4040-af5a-6a230a11ec11@6c48a",
+      "displayName": "佛光普照",
+      "id": "6c48a",
+      "name": "texture",
+      "userData": {
+        "wrapModeS": "clamp-to-edge",
+        "wrapModeT": "clamp-to-edge",
+        "imageUuidOrDatabaseUri": "5c71f496-9b0d-4040-af5a-6a230a11ec11",
+        "isUuid": true,
+        "visible": false,
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 0
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "f9941": {
+      "importer": "sprite-frame",
+      "uuid": "5c71f496-9b0d-4040-af5a-6a230a11ec11@f9941",
+      "displayName": "佛光普照",
+      "id": "f9941",
+      "name": "spriteFrame",
+      "userData": {
+        "trimThreshold": 1,
+        "rotated": false,
+        "offsetX": 0,
+        "offsetY": 0,
+        "trimX": 2,
+        "trimY": 2,
+        "width": 818,
+        "height": 317,
+        "rawWidth": 822,
+        "rawHeight": 321,
+        "borderTop": 0,
+        "borderBottom": 0,
+        "borderLeft": 0,
+        "borderRight": 0,
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivotX": 0.5,
+        "pivotY": 0.5,
+        "meshType": 0,
+        "vertices": {
+          "rawPosition": [
+            -409,
+            -158.5,
+            0,
+            409,
+            -158.5,
+            0,
+            -409,
+            158.5,
+            0,
+            409,
+            158.5,
+            0
+          ],
+          "indexes": [
+            0,
+            1,
+            2,
+            2,
+            1,
+            3
+          ],
+          "uv": [
+            2,
+            319,
+            820,
+            319,
+            2,
+            2,
+            820,
+            2
+          ],
+          "nuv": [
+            0.0024330900243309003,
+            0.006230529595015576,
+            0.9975669099756691,
+            0.006230529595015576,
+            0.0024330900243309003,
+            0.9937694704049844,
+            0.9975669099756691,
+            0.9937694704049844
+          ],
+          "minPos": [
+            -409,
+            -158.5,
+            0
+          ],
+          "maxPos": [
+            409,
+            158.5,
+            0
+          ]
+        },
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "5c71f496-9b0d-4040-af5a-6a230a11ec11@6c48a",
+        "atlasUuid": "",
+        "trimType": "auto"
+      },
+      "ver": "1.0.12",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "type": "sprite-frame",
+    "hasAlpha": true,
+    "fixAlphaTransparencyArtifacts": false,
+    "redirect": "5c71f496-9b0d-4040-af5a-6a230a11ec11@6c48a"
+  }
+}

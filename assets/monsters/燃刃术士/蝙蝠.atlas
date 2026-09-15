@@ -1,0 +1,41 @@
+
+蝙蝠.png
+size: 95, 142
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+shadow
+  rotate: false
+  xy: 2, 95
+  size: 88, 45
+  orig: 91, 47
+  offset: 1, 1
+  index: -1
+蝙蝠右翅
+  rotate: false
+  xy: 2, 45
+  size: 58, 48
+  orig: 58, 48
+  offset: 0, 0
+  index: -1
+蝙蝠头
+  rotate: true
+  xy: 53, 10
+  size: 33, 39
+  orig: 34, 40
+  offset: 0, 1
+  index: -1
+蝙蝠左翅
+  rotate: true
+  xy: 2, 2
+  size: 41, 49
+  orig: 41, 49
+  offset: 0, 0
+  index: -1
+蝙蝠身体
+  rotate: true
+  xy: 62, 57
+  size: 36, 31
+  orig: 36, 31
+  offset: 0, 0
+  index: -1

@@ -1,0 +1,55 @@
+
+飞贼.png
+size: 165, 188
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+shadow
+  rotate: false
+  xy: 75, 45
+  size: 88, 45
+  orig: 91, 47
+  offset: 1, 1
+  index: -1
+飞贼右手
+  rotate: false
+  xy: 2, 2
+  size: 45, 43
+  orig: 45, 43
+  offset: 0, 0
+  index: -1
+飞贼右腿
+  rotate: false
+  xy: 103, 5
+  size: 43, 38
+  orig: 51, 38
+  offset: 8, 0
+  index: -1
+飞贼头
+  rotate: true
+  xy: 2, 47
+  size: 58, 71
+  orig: 59, 72
+  offset: 0, 1
+  index: -1
+飞贼左手
+  rotate: false
+  xy: 93, 92
+  size: 58, 94
+  orig: 58, 94
+  offset: 0, 0
+  index: -1
+飞贼左腿
+  rotate: false
+  xy: 49, 8
+  size: 52, 35
+  orig: 52, 35
+  offset: 0, 0
+  index: -1
+飞贼身子
+  rotate: true
+  xy: 2, 107
+  size: 79, 89
+  orig: 101, 122
+  offset: 22, 12
+  index: -1

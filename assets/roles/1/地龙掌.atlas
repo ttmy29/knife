@@ -1,0 +1,41 @@
+
+地龙掌.png
+size: 651,228
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+tx/A_juji
+  rotate: false
+  xy: 232, 46
+  size: 176, 180
+  orig: 256, 256
+  offset: 32, 32
+  index: -1
+tx/A_smoke10
+  rotate: false
+  xy: 534, 7
+  size: 115, 116
+  orig: 128, 128
+  offset: 7, 6
+  index: -1
+tx/A_stone_lizi
+  rotate: false
+  xy: 2, 2
+  size: 228, 224
+  orig: 256, 256
+  offset: 20, 8
+  index: -1
+tx/dilie_01_csq
+  rotate: true
+  xy: 410, 3
+  size: 120, 122
+  orig: 128, 128
+  offset: 5, 4
+  index: -1
+tx/stone2
+  rotate: true
+  xy: 410, 125
+  size: 101, 212
+  orig: 103, 225
+  offset: 0, 13
+  index: -1
