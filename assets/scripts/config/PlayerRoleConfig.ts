@@ -4,6 +4,8 @@ export type PlayerRoleType = 'role' | 'role1' | 'role2' | 'role3';
 
 export interface PlayerRoleProfile {
     introAnimation?: string;
+    /** 角色沿路径移动时播放的循环动画。 */
+    moveAnimation?: string;
     /** 角色升级实例化时，scsj 节点播放一次的 Spine 特效动画。 */
     upgradeEffectAnimation?: string;
     /** 攻击普通怪物时的中心距离；不配置则使用怪物自身的 battleRadius。 */
@@ -31,6 +33,7 @@ export const BaseRoleSpecialBattleConfig = {
 
 export const PlayerRoleProfiles: Record<PlayerRoleType, PlayerRoleProfile> = {
     role: {
+        moveAnimation: 'move',
         upgradeEffectAnimation: 'sj',
         normalMonsterBattleDistance: 60,
         bossMonsterBattleDistance: 100,

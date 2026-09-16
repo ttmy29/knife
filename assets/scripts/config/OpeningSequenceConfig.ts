@@ -13,6 +13,8 @@ export interface OpeningSequenceProfile {
     initialCameraOrthoScale: number;
     /** 资源加载期间，相机初始位置向上的偏移量。 */
     initialCameraOffsetY: number;
+    /** Boss 加载完成后，镜头缓慢移动到 Boss 所需时间（秒）。 */
+    cameraBossMoveDuration: number;
     /** 所有资源实例化后，镜头移动到角色所需时间（秒）。 */
     cameraMoveDuration: number;
     /** 开局保持镜头位置和扩大视野完全不动的时间（秒）。 */
@@ -47,12 +49,13 @@ export const OpeningSequenceConfig: OpeningSequenceProfile = {
     playerHitSoundDelay: 1,
     firstHelpSoundDelay: 5,
     helpSoundInterval: 6,
-    initialCameraOrthoScale: 1.3,
+    initialCameraOrthoScale: 1.2,
     initialCameraOffsetY: 100,
-    cameraMoveDuration: 1,//0.5
-    cameraStartDelay: 0.5,
+    cameraBossMoveDuration: 1,
+    cameraMoveDuration: 1.5,//0.5
+    cameraStartDelay: 0.2,
     cameraZoomDuration: 1,//0.3
-    cameraTargetOffsetX: -100,
+    cameraTargetOffsetX: 0,
     playerRollStart: { x: 780, y: 220 },
     temporaryPlayerLabelText: '1888',
     playerRollControl: { x: 650, y: 510 },

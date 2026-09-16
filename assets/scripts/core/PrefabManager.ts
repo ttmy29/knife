@@ -9,6 +9,8 @@ type PrefabKey =
     | 'role1'
     | 'role2'
     | 'role3'
+    | 'deadEffect'
+    | 'boom'
     | 'fail'
     | 'victory'
     | 'box'
@@ -18,6 +20,9 @@ type PrefabKey =
     | 'kuijia'
     | 'toukui'
     | 'mount'
+    | 'fireDao'
+    | 'trop'
+    | 'wheel'
     | MonsterPrefabType;
 
 export type EquipmentPrefabType = 'dachui' | 'kuijia' | 'toukui' | 'mount';
@@ -27,6 +32,8 @@ const PREFAB_LOAD_CONFIG: Record<PrefabKey, { bundle: string; path: string }> = 
     role1: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Role1 },
     role2: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Role2 },
     role3: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Role3 },
+    deadEffect: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.DeadEffect },
+    boom: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Boom },
     fail: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Fail },
     victory: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Victory },
     box: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Box },
@@ -36,6 +43,9 @@ const PREFAB_LOAD_CONFIG: Record<PrefabKey, { bundle: string; path: string }> = 
     kuijia: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Kuijia },
     toukui: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Toukui },
     mount: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Mount },
+    fireDao: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.FireDao },
+    trop: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Trop },
+    wheel: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Wheel },
     monster1: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster1 },
     monster2: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster2 },
     monster3: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster3 },
@@ -65,6 +75,14 @@ export class PrefabManager {
 
     static loadRole3(): Promise<Prefab> {
         return this.loadPrefab('role3');
+    }
+
+    static loadDeadEffect(): Promise<Prefab> {
+        return this.loadPrefab('deadEffect');
+    }
+
+    static loadBoom(): Promise<Prefab> {
+        return this.loadPrefab('boom');
     }
 
     static loadFail(): Promise<Prefab> {
@@ -117,6 +135,14 @@ export class PrefabManager {
         return this.createLoadedPrefab('role3');
     }
 
+    static createDeadEffect(): Node {
+        return this.createLoadedPrefab('deadEffect');
+    }
+
+    static createBoom(): Node {
+        return this.createLoadedPrefab('boom');
+    }
+
     static createFail(): Node {
         return this.createLoadedPrefab('fail');
     }
@@ -151,6 +177,18 @@ export class PrefabManager {
 
     static async createMount(): Promise<Node> {
         return instantiate(await this.loadPrefab('mount'));
+    }
+
+    static async createFireDao(): Promise<Node> {
+        return instantiate(await this.loadPrefab('fireDao'));
+    }
+
+    static async createTrop(): Promise<Node> {
+        return instantiate(await this.loadPrefab('trop'));
+    }
+
+    static async createWheel(): Promise<Node> {
+        return instantiate(await this.loadPrefab('wheel'));
     }
 
     static async createMonster(type: MonsterPrefabType): Promise<Node> {

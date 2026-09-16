@@ -1,5 +1,6 @@
 import { _decorator, Component, Label, Node, Vec2, Vec3, UITransform } from 'cc';
 import { Grid } from './Grid';
+import { isSkillName } from './config/SkillConfig';
 
 const { ccclass, property } = _decorator;
 
@@ -65,6 +66,10 @@ export class Chest extends Component {
 
     isEquipment(): boolean {
         return Chest.equipmentNames.has(this.node.name);
+    }
+
+    isSkillUnlock(): boolean {
+        return isSkillName(this.node.name);
     }
 
     private computeCells(): void {

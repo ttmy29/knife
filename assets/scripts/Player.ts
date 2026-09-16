@@ -47,7 +47,7 @@ export class Player extends Component {
     private displayedPower = 4407;
 
     @property
-    public moveSpeed = 350;//280
+    public moveSpeed = 280;//280  350
 
     @property
     public attackStopPadding = 0;//之前20
@@ -76,6 +76,7 @@ export class Player extends Component {
     private activeAttackEffect: sp.Skeleton | null = null;
     private animationTimeScale = 1;
     private animName = 'idle';
+    private moveAnimation = 'run';
     private attackAnimation = 'phyattack1';
     private attackSound: AttackAudioType = 'attack1';
     private attackSoundDelay = 0.2;
@@ -186,6 +187,10 @@ export class Player extends Component {
         this.attackImpactDelay = Math.max(0, impactDelay);
     }
 
+    setMoveAnimation(name?: string): void {
+        this.moveAnimation = name || 'run';
+    }
+
     setAttackEffectsGroup(groupName: string): void {
         this.setupAttackEffects(groupName);
     }
@@ -246,6 +251,11 @@ export class Player extends Component {
     /** 停止当前移动 */
     stop(): void {
         this.moving = false;
+    }
+
+    /** 技能已远程击杀目标时，保留当前移动但取消到达后的重复战斗。 */
+    clearPendingMonster(monster: Monster): void {
+        if (this.pendingMonster === monster) this.pendingMonster = null;
     }
 
     /**
@@ -441,7 +451,7 @@ export class Player extends Component {
     }
 
     playRun(): void {
-        this.playAnim('run', true);
+        this.playAnim(this.moveAnimation, true);
     }
 
     /** 把指定动画缩放到目标时长播放，结束后恢复动画速度并继续后续演出。 */
@@ -668,15 +678,16 @@ export class Player extends Component {
             const estep = this.moveSpeed * dt;
             if (edist <= estep) {
                 this.node.setPosition(entry);
-                this.moving = false;
                 const occNode = occ.monster ? occ.monster.node : (occ.chest ? occ.chest.node : null);
                 if (occNode) {
                     if (occNode.position.x < this.node.position.x) this.setFacing(-1);
                     else if (occNode.position.x > this.node.position.x) this.setFacing(1);
                 }
                 if (occ.monster) {
+                    this.moving = false;
                     if (this.events && this.events.onBattle) this.events.onBattle(occ.monster);
                 } else if (occ.chest) {
+                    this.moving = false;
                     this.playIdle();
                     if (this.events && this.events.onChest) this.events.onChest(occ.chest);
                     return;

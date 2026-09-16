@@ -300,6 +300,31 @@ export class Monster extends Component {
         if (this.attackEffect?.isValid) this.attackEffect.timeScale = value;
     }
 
+    /** 动画必须存在且时长大于 0，才视为可播放的有效动画。 */
+    hasUsableAnimation(name: string): boolean {
+        if (!name) return false;
+        for (const skeleton of this.skeletons) {
+            if (!skeleton || !skeleton.isValid) continue;
+            const runtimeSkeleton = skeleton as unknown as {
+                findAnimation?: (animationName: string) => { duration?: number } | null;
+                skeletonData?: {
+                    getRuntimeData?: () => {
+                        animations?: Array<{ name?: string; duration?: number }>;
+                    };
+                } | null;
+            };
+            const directDuration = runtimeSkeleton.findAnimation?.(name)?.duration;
+            const runtimeDuration = runtimeSkeleton.skeletonData
+                ?.getRuntimeData?.()
+                .animations
+                ?.find(animation => animation.name === name)
+                ?.duration;
+            const duration = directDuration ?? runtimeDuration;
+            if (typeof duration === 'number' && isFinite(duration) && duration > 0.001) return true;
+        }
+        return false;
+    }
+
     /** 播放一次指定动画，完成后恢复 idle。 */
     playOnceThenIdle(name: string, onComplete?: () => void): void {
         this.animName = '';
@@ -345,12 +370,21 @@ export class Monster extends Component {
         this.playAnim(this.attackAnimation, true);
     }
 
-    /** 死亡动画播完回调（播一次停在最后一帧） */
-    playDie(onComplete?: () => void): void {
+    /** 播放受击动画，完成后由调用方继续死亡流程。 */
+    playHitReaction(name: string, onComplete?: () => void): void {
         this.clearAttackHitListeners();
         this.hideAttackEffect();
         this.animName = '';
-        this.playAnim(this.deathAnimation, false);
+        this.playAnim(name, false);
+        this.onceAnimComplete(onComplete);
+    }
+
+    /** 死亡动画播完回调（播一次停在最后一帧）；可由技能指定最终死亡动画。 */
+    playDie(onComplete?: () => void, animationOverride?: string): void {
+        this.clearAttackHitListeners();
+        this.hideAttackEffect();
+        this.animName = '';
+        this.playAnim(animationOverride || this.deathAnimation, false);
         this.onceAnimComplete(onComplete);
     }
 

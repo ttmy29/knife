@@ -1,0 +1,76 @@
+
+爆炸.png
+size: 1277,205
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+eff/1_00000g
+  rotate: false
+  xy: 1042, 18
+  size: 30, 30
+  orig: 40, 40
+  offset: 4, 5
+  index: -1
+eff/1_00017
+  rotate: false
+  xy: 1186, 114
+  size: 89, 89
+  orig: 256, 256
+  offset: 87, 82
+  index: -1
+eff/1_00019
+  rotate: false
+  xy: 1042, 50
+  size: 142, 153
+  orig: 256, 256
+  offset: 72, 51
+  index: -1
+eff/1_00020
+  rotate: false
+  xy: 725, 15
+  size: 169, 188
+  orig: 256, 256
+  offset: 46, 30
+  index: -1
+eff/1_00021
+  rotate: false
+  xy: 549, 7
+  size: 174, 196
+  orig: 256, 256
+  offset: 43, 26
+  index: -1
+eff/1_00023
+  rotate: false
+  xy: 366, 9
+  size: 181, 194
+  orig: 256, 256
+  offset: 40, 30
+  index: -1
+eff/1_00024
+  rotate: false
+  xy: 183, 6
+  size: 181, 197
+  orig: 256, 256
+  offset: 38, 29
+  index: -1
+eff/1_00026
+  rotate: false
+  xy: 2, 2
+  size: 179, 201
+  orig: 256, 256
+  offset: 37, 26
+  index: -1
+eff/1_00028
+  rotate: false
+  xy: 896, 10
+  size: 144, 193
+  orig: 256, 256
+  offset: 53, 34
+  index: -1
+eff/2_00016
+  rotate: false
+  xy: 1074, 18
+  size: 29, 30
+  orig: 40, 40
+  offset: 5, 5
+  index: -1

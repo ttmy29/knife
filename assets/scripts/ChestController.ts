@@ -2,9 +2,10 @@ import { Node, sp } from 'cc';
 import { Chest } from './Chest';
 import { Grid } from './Grid';
 import { Player } from './Player';
-import { ChestPositionConfig, EquipmentName } from './config/ChestPositionConfig';
+import { ChestPositionConfig, DisplayItemName, EquipmentName } from './config/ChestPositionConfig';
 import { MonsterGuideConfig } from './config/MonsterGuideConfig';
 import { PlayerRoleProfiles, PlayerRoleType } from './config/PlayerRoleConfig';
+import { SkillName } from './config/SkillConfig';
 import { AudioManager } from './core/AudioManager';
 import { PrefabManager } from './core/PrefabManager';
 
@@ -12,6 +13,11 @@ type RewardRoleType = 'role1' | 'role2' | 'role3';
 
 interface EquipmentSpawnConfig {
     name: EquipmentName;
+    create: () => Promise<Node>;
+}
+
+interface DisplayItemSpawnConfig {
+    name: DisplayItemName;
     create: () => Promise<Node>;
 }
 
@@ -30,6 +36,7 @@ export class ChestController {
         private readonly applyPlayerRoleProfile: (player: Player, roleType: PlayerRoleType, playIntro?: boolean) => void,
         private readonly requestGuideStartForNode: (node: Node, openingActive: boolean) => void,
         private readonly isOpeningSequenceActive: () => boolean,
+        private readonly unlockSkill: (name: SkillName) => void,
     ) {}
 
     setupRenderLayers(): void {
@@ -105,6 +112,42 @@ export class ChestController {
                 }
             } catch (err) {
                 console.error(`[ChestController] load equipment prefab failed: ${item.name}`, err);
+            }
+        }));
+    }
+
+    /** 加载技能解锁道具，复用宝箱占格拾取并注册对应引导。 */
+    async spawnDisplayItems(): Promise<void> {
+        const boxLayer = this.worldNode.getChildByName('boxLayer');
+        const grid = this.getGrid();
+        if (!boxLayer || !grid) return;
+
+        // 隐藏场景里用于保留编辑器结构的旧实例，运行时只显示新加载的物件。
+        for (const child of boxLayer.children) {
+            child.active = false;
+        }
+
+        const items: DisplayItemSpawnConfig[] = [
+            { name: 'fireDao', create: () => PrefabManager.createFireDao() },
+            { name: 'trop', create: () => PrefabManager.createTrop() },
+            { name: 'wheel', create: () => PrefabManager.createWheel() },
+        ];
+
+        await Promise.all(items.map(async (item) => {
+            try {
+                const node = await item.create();
+                node.name = item.name;
+                const position = ChestPositionConfig.displayItems[item.name];
+                node.setPosition(position.x, position.y, position.z);
+                boxLayer.addChild(node);
+                const chest = node.getComponent(Chest) || node.getComponentInChildren(Chest) || node.addComponent(Chest);
+                chest.init(grid);
+                this.movePresentationToLayers(chest);
+                if (item.name === MonsterGuideConfig.targetNodeName) {
+                    this.requestGuideStartForNode(node, this.isOpeningSequenceActive());
+                }
+            } catch (err) {
+                console.error(`[ChestController] load display item prefab failed: ${item.name}`, err);
             }
         }));
     }
@@ -190,6 +233,12 @@ export class ChestController {
         if (chest.node) chest.node.active = false;
 
         AudioManager.playLevelUp();
+        if (chest.isSkillUnlock()) {
+            this.unlockSkill(chest.node.name as SkillName);
+            player.playUpgradeEffect(PlayerRoleProfiles.role.upgradeEffectAnimation);
+            AudioManager.playCheer();
+            return;
+        }
         if (chest.isEquipment()) {
             this.applyEquipmentToPlayer(player, chest.node.name as EquipmentName);
             return;

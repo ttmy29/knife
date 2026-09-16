@@ -34,6 +34,7 @@ export class Grid extends Component {
     private monsterMap: Map<string, Monster> = new Map();
     private monsters: Set<Monster> = new Set();
     private chestMap: Map<string, Chest> = new Map();
+    private chests: Set<Chest> = new Set();
 
     init(data: LevelData): void {
         this.cols = data.cols;
@@ -143,13 +144,20 @@ export class Grid extends Component {
         return this.monsterMap.get(this.key(col, row)) || null;
     }
 
+    /** 当前仍登记在地图上、可以参与自动攻击检测的怪物。 */
+    getMonsters(): Monster[] {
+        return Array.from(this.monsters);
+    }
+
     addChest(c: Chest): void {
+        this.chests.add(c);
         for (const cell of c.cells) {
             this.chestMap.set(this.key(cell.x, cell.y), c);
         }
     }
 
     removeChest(c: Chest): void {
+        this.chests.delete(c);
         for (const cell of c.cells) {
             const k = this.key(cell.x, cell.y);
             if (this.chestMap.get(k) === c) this.chestMap.delete(k);
@@ -162,6 +170,11 @@ export class Grid extends Component {
 
     getChestAt(col: number, row: number): Chest | null {
         return this.chestMap.get(this.key(col, row)) || null;
+    }
+
+    /** 当前仍登记在地图上、尚未拾取的全部宝箱和武器道具。 */
+    getChests(): Chest[] {
+        return Array.from(this.chests);
     }
 
     /**
@@ -482,7 +495,8 @@ export class Grid extends Component {
         const battleDistance = distanceOverride === undefined
             ? monster.battleRadius
             : Math.max(0, distanceOverride);
-        const radius = Math.max(battleDistance, this.tileSize * 1.5);
+        // 战斗停点严格使用怪物配置范围，不再被固定格子距离放大。
+        const radius = battleDistance;
         const limit = Math.max(0, Math.min(89, monster.battleAngleLimit));
         const entryDx = hit.entry.x - center.x;
         const entryDy = hit.entry.y - center.y;

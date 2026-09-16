@@ -52,6 +52,7 @@ export class MonsterGuideController {
         this.active = true;
         const guideNode = this.guideNode;
         if (guideNode && guideNode.isValid) {
+            guideNode.setWorldPosition(node.worldPosition);
             guideNode.active = true;
             const skeleton = guideNode.getComponent(sp.Skeleton)
                 || guideNode.getComponentInChildren(sp.Skeleton);

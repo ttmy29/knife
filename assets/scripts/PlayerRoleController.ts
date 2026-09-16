@@ -117,6 +117,7 @@ export class PlayerRoleController {
     applyPlayerRoleProfile(player: Player, roleType: PlayerRoleType, playIntro = true): void {
         const profile = PlayerRoleProfiles[roleType];
         this.roleType = roleType;
+        player.setMoveAnimation(profile.moveAnimation);
         player.setAttackProfile(
             profile.attackAnimation,
             profile.attackSound,

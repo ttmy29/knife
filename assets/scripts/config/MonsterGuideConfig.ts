@@ -6,6 +6,6 @@ export interface MonsterGuideProfile {
 }
 
 export const MonsterGuideConfig: MonsterGuideProfile = {
-    targetNodeName: 'dao',
+    targetNodeName: 'trop',
     animationName: 'yindao_dianji',
 };

@@ -79,17 +79,14 @@ export class OpeningSequenceController {
         this.stopHelpSoundDelay();
     }
 
-    /** 角色实例化到开场临时点后，立即应用临时显示文本。 */
+    /** 角色开场直接使用真实战力文本，不再应用临时显示数字。 */
     preparePlayerForOpening(player: Player): void {
         if (!this.activeState || !player.node.isValid) return;
-        this.showTemporaryPlayerLabel(player);
     }
 
-    /** 开场启用时从临时位置实例化，正式出生点仍由 Level1 配置提供。 */
+    /** 角色开场直接实例化到正式出生点；旧翻滚起点配置保留但不再使用。 */
     getPlayerInitialLocalPosition(): Vec3 {
-        if (!this.activeState) return this.getPlayerSpawnLocalPosition();
-        const start = OpeningSequenceConfig.playerRollStart;
-        return new Vec3(start.x, start.y, 0);
+        return this.getPlayerSpawnLocalPosition();
     }
 
     deactivate(): void {
@@ -132,7 +129,7 @@ export class OpeningSequenceController {
         );
     }
 
-    /** 所有资源完成实例化后，对准开场怪物并开始整段开场演出。 */
+    /** 所有资源完成实例化后：镜头缓慢对准 Boss，Boss 攻击结束后再缓慢移动到角色。 */
     start(monster: Monster): void {
         if (!this.activeState || this.introStarted) return;
         const player = this.getPlayer();
@@ -143,37 +140,23 @@ export class OpeningSequenceController {
 
         this.introStarted = true;
         OpeningSequenceController.shownOnce = true;
-        this.showTemporaryPlayerLabel(player);
         const camera = this.getCamera();
-        let monsterReady = false;
-        let cameraReady = !camera;
-        let attackStarted = false;
-        const tryStartMonsterAttack = (): void => {
-            if (attackStarted || !monsterReady || !cameraReady) return;
-            attackStarted = true;
-           // AudioManager.playShout();
+        monster.activateOnGrid();
+        const playBossAttack = (beginCameraTransition: () => void): void => {
+            if (!this.activeState || !monster.node.isValid) return;
             this.moveMonsterLayerAbovePlayer();
-            let rollStarted = false;
-            const startRoll = (): void => {
-                if (rollStarted) return;
-                rollStarted = true;
-                this.rollPlayerToSpawn();
-            };
             monster.playAttackThenIdle(() => {
                 this.restoreMonsterLayer();
-                // 素材事件异常时在攻击结束处兜底，避免开场无法继续。
-                startRoll();
-            }, startRoll);
-            this.startPlayerHitSoundDelay();
+                // 只在完整攻击动画结束后开始镜头移动；不再响应 hit 事件或播放角色受击音效。
+                this.startCameraTransitionDelay(beginCameraTransition);
+            });
         };
-        // monster1 已在直绑预制体创建后显示；这里只等待镜头，不再重复淡入。
-        monster.activateOnGrid();
-        monsterReady = true;
-        tryStartMonsterAttack();
 
         if (!camera) {
-            this.restoreCameraOrthoHeight();
-            tryStartMonsterAttack();
+            playBossAttack(() => {
+                this.restoreCameraOrthoHeight();
+                this.finishOpening();
+            });
             return;
         }
 
@@ -183,18 +166,18 @@ export class OpeningSequenceController {
             this.originalCameraOffsetX = follow.targetOffsetX;
         }
         follow.targetOffsetX = OpeningSequenceConfig.cameraTargetOffsetX;
-        let movementReady = false;
-        let zoomReady = false;
-        const tryFinishCamera = (): void => {
-            if (!movementReady || !zoomReady) return;
-            if (monster.node.isValid) follow.target = monster.node;
-            cameraReady = true;
-            tryStartMonsterAttack();
-        };
+
         const beginCameraTransition = (): void => {
             if (!this.activeState || !player.node.isValid || !camera.node.isValid) return;
+            let movementReady = false;
+            let zoomReady = false;
+            const tryFinishCamera = (): void => {
+                if (!movementReady || !zoomReady) return;
+                this.finishOpening();
+            };
+            this.restoreCameraOffset(OpeningSequenceConfig.cameraMoveDuration);
             follow.moveToWorldPosition(
-                monster.node.worldPosition,
+                player.node.worldPosition,
                 OpeningSequenceConfig.cameraMoveDuration,
                 () => {
                     movementReady = true;
@@ -204,13 +187,19 @@ export class OpeningSequenceController {
                     ? camera.orthoHeight
                     : this.originalCameraOrthoHeight,
             );
-            AudioManager.playHelp2();
             this.zoomCameraToOriginal(() => {
                 zoomReady = true;
                 tryFinishCamera();
             });
         };
-        this.startCameraTransitionDelay(beginCameraTransition);
+
+        // Boss 资源就绪后从当前初始镜头平滑移动过去；到位后才开始攻击。
+        follow.moveToWorldPosition(
+            monster.node.worldPosition,
+            OpeningSequenceConfig.cameraBossMoveDuration,
+            () => playBossAttack(beginCameraTransition),
+            camera.orthoHeight,
+        );
     }
 
     destroy(): void {
@@ -305,7 +294,6 @@ export class OpeningSequenceController {
                 if (labelNode && labelNode.isValid) labelNode.active = labelWasActive;
                 player.setAnimationTimeScale(1);
                 this.syncPlayerGridPosition(player, target);
-                this.startHelpSoundLoop();
                 player.playAnimationOverDuration(
                     OpeningSequenceConfig.playerLandingTransitionAnimation,
                     OpeningSequenceConfig.playerLandingTransitionDuration,

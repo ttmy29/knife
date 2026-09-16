@@ -1,6 +1,6 @@
 import {
-    _decorator, Component, Node, Graphics,
-    Color, Vec3, Camera, sp, UITransform,
+    _decorator, Animation, Component, Node, Graphics, sp,
+    Color, Vec3, Camera,
 } from 'cc';
 import { Grid } from './Grid';
 import { Monster } from './Monster';
@@ -17,16 +17,17 @@ import { MonsterGuideController } from './MonsterGuideController';
 import { OpeningSequenceController } from './OpeningSequenceController';
 import { PlayerInputController } from './PlayerInputController';
 import { PlayerRoleController } from './PlayerRoleController';
+import { PlayerSkillController } from './PlayerSkillController';
 import { RewardController } from './RewardController';
 import { ResultPanelController } from './ResultPanelController';
 import { Level1 } from './GameConfig';
 import { AudioManager } from './core/AudioManager';
-import { BundleManager } from './core/BundleManager';
+import { AutoSkillController } from './AutoSkillController';
+import { BattleController } from './BattleController';
 import { PrefabManager } from './core/PrefabManager';
-import { AttackAudioType, ResourcePath } from './config/ResourceConfig';
-import { BaseRoleSpecialBattleConfig } from './config/PlayerRoleConfig';
-import { DodgeConfig } from './config/DodgeConfig';
+import { AttackAudioType } from './config/ResourceConfig';
 import { GameAssets } from './GameAssets';
+import { SkillSystemConfig } from './config/SkillConfig';
 
 const { ccclass, property } = _decorator;
 
@@ -51,28 +52,27 @@ export class GameManager extends Component {
     private pathLine: PathLine | null = null;
     private uiLayer: Node | null = null;
     private camera: Camera | null = null;
-    private battling = false;
+    private battle: BattleController | null = null;
     private resultPanels: ResultPanelController | null = null;
     private rewards: RewardController | null = null;
     private chests: ChestController | null = null;
     private playerRoles: PlayerRoleController | null = null;
+    private playerSkills: PlayerSkillController | null = null;
+    private autoSkills: AutoSkillController | null = null;
     private playerInput: PlayerInputController | null = null;
     private monsterController: MonsterController | null = null;
     private finalBossCinematic: FinalBossCinematicController | null = null;
-    private activeBattleMonster: Monster | null = null;
     private monsterGlow: MonsterGlowController | null = null;
     private monsterGuide: MonsterGuideController | null = null;
     private openingSequence: OpeningSequenceController | null = null;
-    private hitEffectsNode: Node | null = null;
     private backgroundAssetsReady = false;
     private openingFinished = false;
+    private readonly defeatedMonsters = new Set<Monster>();
 
     onLoad(): void {
         PrefabManager.init(this.gameAssets);
         AudioManager.init(this.node, this.gameAssets);
         AudioManager.playBgm();
-        this.setupHitEffectsNode();
-
         const canvas = this.node.parent;
         this.camera = canvas ? canvas.getComponentInChildren(Camera) : null;
         if (this.camera) this.camera.orthoHeight = this.baseCameraOrthoHeight;
@@ -92,7 +92,7 @@ export class GameManager extends Component {
             () => this.camera,
             this.monsterGlow,
             () => this.openingSequence?.active || false,
-            () => this.activeBattleMonster,
+            () => this.battle?.getActiveMonster() || null,
             () => this.finalBossCinematic?.currentFinisherMonster || null,
         );
 
@@ -115,16 +115,61 @@ export class GameManager extends Component {
         this.bakeWallRegions();
 
         this.buildGround();
+        const skillLayer = this.node.getChildByName('TempLayer');
+        if (!skillLayer) console.warn('[GameManager] GameWorld/TempLayer is missing');
+        this.playerSkills = new PlayerSkillController(this, skillLayer || this.node);
+        this.autoSkills = new AutoSkillController(
+            () => this.grid,
+            () => this.player,
+            () => this.playerSkills,
+            () => (this.openingSequence?.active || false)
+                || !this.backgroundAssetsReady
+                || (this.battle?.isBattling() || false),
+            (monster) => this.defeatedMonsters.has(monster),
+            () => this.monsterController?.getFinalMonster() || null,
+            () => this.openingSequence?.stopHelpSounds(),
+            (monster, config) => this.resolveMonsterDefeat(
+                monster,
+                config.monsterHitAnimation,
+                config.monsterDeathAnimation,
+                config.monsterImpactEffect,
+                config.monsterImpactEffectAnimation,
+            ),
+        );
         this.playerRoles = new PlayerRoleController(
             this.node,
             () => this.grid,
             (player) => this.bindPlayerEvents(player),
             (player) => {
                 this.player = player;
+                this.playerSkills?.bindPlayer(player);
                 this.openingSequence?.preparePlayerForOpening(player);
             },
             () => this.openingSequence?.getPlayerInitialLocalPosition() || this.getPlayerSpawnLocalPosition(),
             () => this.assignCameraTarget(),
+        );
+        this.battle = new BattleController(
+            this,
+            () => this.player,
+            () => this.playerSkills,
+            () => this.autoSkills,
+            (monster) => this.defeatedMonsters.has(monster),
+            () => this.monsterController?.getFinalMonster() || null,
+            () => this.finalBossCinematic,
+            () => this.playerRoles?.getCurrentPrefabRoleType() === 'role',
+            () => this.monsterGlow?.hide(),
+            () => this.pathLine?.clear(),
+            () => this.openingSequence?.stopHelpSounds(),
+            (monster, hitAnimation, deathAnimation, impactEffect, impactEffectAnimation) => {
+                this.resolveMonsterDefeat(
+                    monster,
+                    hitAnimation,
+                    deathAnimation,
+                    impactEffect,
+                    impactEffectAnimation,
+                );
+            },
+            () => this.showDeathUI(),
         );
         this.rewards = new RewardController(this, this.node, () => this.player);
         this.rewards.init();
@@ -138,6 +183,7 @@ export class GameManager extends Component {
             (player, roleType, playIntro) => this.playerRoles?.applyPlayerRoleProfile(player, roleType, playIntro),
             (node, openingActive) => this.monsterGuide?.requestStartForNode(node, openingActive),
             () => (this.openingSequence?.active || false) || !this.backgroundAssetsReady,
+            (name) => this.playerSkills?.unlock(name),
         );
         this.buildPathLine();
         this.monsterController.setupRenderLayers();
@@ -151,10 +197,7 @@ export class GameManager extends Component {
             () => this.camera,
             () => this.uiLayer,
             () => this.openingSequence?.active || false,
-            () => this.battling,
-            () => this.monsterController?.getFinalMonster() || null,
-            () => this.playerRoles?.getCurrentProfile().normalMonsterBattleDistance,
-            () => this.playerRoles?.getCurrentProfile().bossMonsterBattleDistance,
+            () => this.battle?.isBattling() || false,
             this.monsterGlow,
             () => this.monsterGuide?.dismiss() || false,
         );
@@ -172,6 +215,9 @@ export class GameManager extends Component {
         this.rewards?.destroy();
         this.monsterController?.destroy();
         this.playerInput?.destroy();
+        this.battle?.clear();
+        this.autoSkills?.destroy();
+        this.playerSkills?.destroy();
     }
 
     // ---------------- 场景搭建 ----------------
@@ -237,33 +283,16 @@ export class GameManager extends Component {
             'attack1', 'attack2', 'attack3',
             'smallAttack', 'bigAttack',
             'monsterDie', 'expCollect', 'levelUp', 'cheer',
-            'help1', 'heHa', 'bossAttack', 'bossDie', 'victory',
+            'heHa', 'bossAttack', 'bossDie', 'fail', 'victory',
         ] as const;
         const tasks: Promise<unknown>[] = [
-            PrefabManager.loadRole3(),
             PrefabManager.loadMonster('monster3'),
             PrefabManager.loadMonster('monster4'),
-            PrefabManager.loadEquipment('dachui'),
-            PrefabManager.loadEquipment('kuijia'),
-            PrefabManager.loadEquipment('toukui'),
-            PrefabManager.loadEquipment('mount'),
-            this.loadHitEffectAsset(
-                this.gameAssets.hit100001Attack2,
-                ResourcePath.Spine.Hit.Attack2,
-                asset => { this.gameAssets.hit100001Attack2 = asset; },
-            ),
-            this.loadHitEffectAsset(
-                this.gameAssets.hit100001Attack4,
-                ResourcePath.Spine.Hit.Attack4,
-                asset => { this.gameAssets.hit100001Attack4 = asset; },
-            ),
-            this.loadHitEffectAsset(
-                this.gameAssets.hit10009Attack4,
-                ResourcePath.Spine.Hit.ChargeAttack4,
-                asset => { this.gameAssets.hit10009Attack4 = asset; },
-            ),
             AudioManager.preload(audioKeys),
+            PrefabManager.loadFail(),
             PrefabManager.loadVictory(),
+            PrefabManager.loadDeadEffect(),
+            PrefabManager.loadBoom(),
         ];
 
         await Promise.all(tasks.map(async task => {
@@ -275,28 +304,12 @@ export class GameManager extends Component {
         }));
     }
 
-    private async loadHitEffectAsset(
-        current: sp.SkeletonData | null,
-        path: string,
-        assign: (asset: sp.SkeletonData) => void,
-    ): Promise<void> {
-        const asset = current && current.isValid
-            ? current
-            : await BundleManager.loadAsset(ResourcePath.Bundle.Roles, path, sp.SkeletonData);
-        assign(asset);
-    }
-
     private async finishBackgroundLoading(preloadTask: Promise<void>): Promise<void> {
         await preloadTask;
         try {
-            await Promise.all([
-                this.monsterController
-                    ? this.monsterController.spawnMonsters(['monster3', 'monster4'], false)
-                    : Promise.resolve(),
-                this.chests
-                    ? this.chests.spawnEquipmentItems(['dachui', 'kuijia', 'toukui', 'mount'])
-                    : Promise.resolve(),
-            ]);
+            await (this.monsterController
+                ? this.monsterController.spawnMonsters(['monster3', 'monster4'], false)
+                : Promise.resolve());
         } catch (err) {
             console.error('[GameManager] create background scene objects failed', err);
         }
@@ -316,8 +329,7 @@ export class GameManager extends Component {
             this.monsterController
                 ? this.monsterController.spawnMonsters(['monster1', 'monster2'])
                 : Promise.resolve(),
-            this.chests ? this.chests.spawnInitialChest() : Promise.resolve(),
-            this.chests ? this.chests.spawnEquipmentItems(['dao']) : Promise.resolve(),
+            this.chests ? this.chests.spawnDisplayItems() : Promise.resolve(),
         ]).catch(err => {
             console.error('[GameManager] direct opening scene load failed', err);
         });
@@ -352,61 +364,12 @@ export class GameManager extends Component {
         player.events = {
             onArrive: (m: Monster | null) => {
                 if (this.pathLine) this.pathLine.hideTarget();
-                if (m) this.doBattle(m);
+                if (m) this.battle?.start(m);
             },
-            onBattle: (m: Monster) => this.doBattle(m),
+            onBattle: (m: Monster) => this.battle?.start(m),
             onChest: (chest: Chest) => this.chests?.openChest(chest),
             onAttack: (sound: AttackAudioType) => AudioManager.playAttack(sound),
-            onAttackEffectHit: (effectName: string) => this.playMonsterHitEffect(effectName),
         };
-    }
-
-    private setupHitEffectsNode(): void {
-        this.hitEffectsNode = this.node.getChildByName('HitEffects');
-        if (this.hitEffectsNode) return;
-        this.hitEffectsNode = new Node('HitEffects');
-        this.node.addChild(this.hitEffectsNode);
-    }
-
-    private playMonsterHitEffect(attackEffectName: string): void {
-        const monster = this.activeBattleMonster;
-        if (!monster?.node?.isValid) return;
-
-        let skeletonData: sp.SkeletonData | null = null;
-        if (attackEffectName === '100001_attack_2') {
-            skeletonData = this.gameAssets.hit100001Attack2;
-        } else if (attackEffectName === '100001_attack_4') {
-            skeletonData = this.gameAssets.hit100001Attack4;
-        } else if (attackEffectName === '10009_attack_4') {
-            skeletonData = this.gameAssets.hit10009Attack4;
-        }
-        if (!skeletonData) return;
-
-        if (!this.hitEffectsNode?.isValid) this.setupHitEffectsNode();
-        if (!this.hitEffectsNode) return;
-
-        const effectNode = new Node(`${attackEffectName}_hit`);
-        effectNode.layer = this.node.layer;
-        effectNode.addComponent(UITransform);
-        this.hitEffectsNode.addChild(effectNode);
-        const targetPosition = monster.node.worldPosition;
-        effectNode.setWorldPosition(targetPosition.x, targetPosition.y + 50, targetPosition.z);
-
-        const playerWorldScale = Math.abs(this.player?.node.worldScale.y || 1);
-        const parentWorldScale = Math.abs(this.hitEffectsNode.worldScale.y) || 1;
-        const scale = playerWorldScale / parentWorldScale * 1.3;
-        const facing = this.player?.getFacing() || 1;
-        effectNode.setScale(facing * scale, scale, 1);
-
-        const skeleton = effectNode.addComponent(sp.Skeleton);
-        skeleton.skeletonData = skeletonData;
-        skeleton.premultipliedAlpha = false;
-        skeleton.setSkin('default');
-        skeleton.setCompleteListener(() => {
-            skeleton.setCompleteListener(() => {});
-            if (effectNode.isValid) effectNode.destroy();
-        });
-        skeleton.setAnimation(0, 'animation', false);
     }
 
     /** 相机跟随角色：给 Camera �?CameraFollow 并指定目�?*/
@@ -429,6 +392,163 @@ export class GameManager extends Component {
 
     update(dt: number): void {
         this.playerInput?.update(dt);
+        this.playerSkills?.update(dt);
+        this.autoSkills?.update(dt);
+    }
+
+    /** 所有攻击共用一次性击杀结算，避免同一怪物重复掉落多批经验。 */
+    private resolveMonsterDefeat(
+        monster: Monster,
+        hitAnimation?: string,
+        deathAnimation?: string,
+        impactEffect?: 'boom',
+        impactEffectAnimation?: string,
+    ): boolean {
+        if (this.defeatedMonsters.has(monster)) return false;
+        const player = this.player;
+        if (!player || !player.node.isValid) return false;
+        this.defeatedMonsters.add(monster);
+        this.autoSkills?.releaseTarget(monster);
+        this.grid?.removeMonster(monster);
+        player.clearPendingMonster(monster);
+
+        const rewardPower = monster.power;
+        player.power += rewardPower;
+        const isFinalMonster = monster === this.monsterController?.getFinalMonster();
+        if (isFinalMonster) AudioManager.playBossDie();
+        else AudioManager.playMonsterDie();
+        this.camera?.getComponent(CameraFollow)?.shake();
+
+        let monsterHidden = false;
+        const hideMonster = () => {
+            if (monsterHidden) return;
+            monsterHidden = true;
+            monster.setPresentationActive(false);
+            if (monster.node?.isValid) monster.node.active = false;
+            this.battle?.clearActiveMonster(monster);
+            if (isFinalMonster) this.showVictoryUI();
+        };
+        if (SkillSystemConfig.playMonsterDeathAnimation) {
+            const usableHitAnimation = hitAnimation && monster.hasUsableAnimation(hitAnimation)
+                ? hitAnimation
+                : undefined;
+            const requestedDeathIsMissing = !!deathAnimation
+                && !monster.hasUsableAnimation(deathAnimation);
+
+            // 部分怪物的 die 虽有名称但时长为 0；此时把 hitFly 直接作为死亡动画，
+            // deadEffect 与 hitFly 同时开始，避免 hitFly 播放两遍或瞬间隐藏。
+            if (usableHitAnimation && requestedDeathIsMissing) {
+                if (impactEffect === 'boom') {
+                    this.playMonsterBoomEffect(monster, impactEffectAnimation || 'molotovAttackhits');
+                }
+                this.playMonsterDeathEffect(monster);
+                monster.playHitReaction(usableHitAnimation, hideMonster);
+                this.scheduleOnce(hideMonster, SkillSystemConfig.monsterForceHideTimeout);
+                this.rewards?.startExpOrbDrop(
+                    monster,
+                    () => this.rewards?.enqueuePlayerPowerGain(rewardPower),
+                );
+                return true;
+            }
+
+            let deathStarted = false;
+            const startDeath = () => {
+                if (deathStarted || monsterHidden) return;
+                deathStarted = true;
+                if (impactEffect === 'boom') {
+                    this.playMonsterBoomEffect(monster, impactEffectAnimation || 'molotovAttackhits');
+                }
+                this.playMonsterDeathEffect(monster);
+                monster.playDie(hideMonster, deathAnimation);
+                this.scheduleOnce(hideMonster, SkillSystemConfig.monsterForceHideTimeout);
+            };
+            if (usableHitAnimation) {
+                monster.playHitReaction(usableHitAnimation, startDeath);
+                // 受击动画资源异常时仍继续死亡流程，避免怪物永久停留。
+                this.scheduleOnce(startDeath, SkillSystemConfig.monsterForceHideTimeout);
+            } else startDeath();
+        } else hideMonster();
+        this.rewards?.startExpOrbDrop(
+            monster,
+            () => this.rewards?.enqueuePlayerPowerGain(rewardPower),
+        );
+        return true;
+    }
+
+    /** 怪物开始 die 时，在 TempLayer 播放一次帧动画死亡特效。 */
+    private playMonsterDeathEffect(monster: Monster): void {
+        const tempLayer = this.node.getChildByName('TempLayer');
+        if (!tempLayer || !monster.node || !monster.node.isValid) return;
+
+        let effect: Node;
+        try {
+            effect = PrefabManager.createDeadEffect();
+        } catch (err) {
+            console.error('[GameManager] create deadEffect failed', err);
+            return;
+        }
+
+        const worldPosition = monster.node.worldPosition.clone();
+        worldPosition.y += SkillSystemConfig.deathEffectOffsetY;
+        effect.active = false;
+        tempLayer.addChild(effect);
+        effect.setWorldPosition(worldPosition);
+        effect.active = true;
+
+        let cleaned = false;
+        const cleanup = () => {
+            if (cleaned) return;
+            cleaned = true;
+            if (effect.isValid) effect.destroy();
+        };
+        const animation = effect.getComponent(Animation) || effect.getComponentInChildren(Animation);
+        if (!animation) {
+            console.warn('[GameManager] deadEffect Animation component is missing');
+            this.scheduleOnce(cleanup, 3);
+            return;
+        }
+        animation.once(Animation.EventType.FINISHED, cleanup);
+        animation.play('animation');
+        this.scheduleOnce(cleanup, 3);
+    }
+
+    /** fireDao 命中死亡时，在 TempLayer 播放一次爆炸 Spine。 */
+    private playMonsterBoomEffect(monster: Monster, animationName: string): void {
+        const tempLayer = this.node.getChildByName('TempLayer');
+        if (!tempLayer || !monster.node || !monster.node.isValid) return;
+
+        let effect: Node;
+        try {
+            effect = PrefabManager.createBoom();
+        } catch (err) {
+            console.error('[GameManager] create boom failed', err);
+            return;
+        }
+
+        const worldPosition = monster.node.worldPosition.clone();
+        effect.active = false;
+        tempLayer.addChild(effect);
+        effect.setWorldPosition(worldPosition);
+        effect.active = true;
+
+        let cleaned = false;
+        const cleanup = () => {
+            if (cleaned) return;
+            cleaned = true;
+            if (effect.isValid) effect.destroy();
+        };
+        const skeleton = effect.getComponent(sp.Skeleton) || effect.getComponentInChildren(sp.Skeleton);
+        if (!skeleton) {
+            console.warn('[GameManager] boom Skeleton component is missing');
+            this.scheduleOnce(cleanup, 3);
+            return;
+        }
+        skeleton.setCompleteListener(() => {
+            skeleton.setCompleteListener(() => {});
+            cleanup();
+        });
+        skeleton.setAnimation(0, animationName, false);
+        this.scheduleOnce(cleanup, 3);
     }
 
     private buildUI(): void {
@@ -441,141 +561,6 @@ export class GameManager extends Component {
     }
 
     // ---------------- 战斗（需�?4/12/13/14�?----------------
-
-    private doBattle(monster: Monster): void {
-        if (!this.player || this.battling) return;
-        this.monsterGlow?.hide();
-        this.battling = true;
-        this.activeBattleMonster = monster;
-        monster.setViewportVisible(true);
-        if (this.pathLine) this.pathLine.clear();
-        this.player.faceToWorldX(monster.node.worldPosition.x);
-        monster.faceToWorldX(this.player.node.worldPosition.x);
-        const useBigMonsterAttack = BaseRoleSpecialBattleConfig.targetMonsterNames
-            .some(name => name === monster.node.name);
-        const useAttack3 = this.playerRoles?.getCurrentPrefabRoleType() === 'role'
-            && useBigMonsterAttack;
-        const playPlayerAttack = (
-            onComplete?: () => void,
-            onImpact?: () => void,
-            playSound = true,
-            playEffect = true,
-        ): void => {
-            if (!this.player) return;
-            if (useAttack3) {
-                this.player.playAttackAnimation(
-                    BaseRoleSpecialBattleConfig.attackAnimation,
-                    onComplete,
-                    onImpact,
-                    undefined,
-                    BaseRoleSpecialBattleConfig.attackSoundDelay,
-                    BaseRoleSpecialBattleConfig.attackImpactDelay,
-                    playSound,
-                    playEffect,
-                );
-            } else this.player.playAttack(onComplete, onImpact, undefined, playSound, playEffect);
-        };
-        const win = this.player.power > monster.power;
-        const rewardPower = monster.power;
-        const finalMonster = this.monsterController?.getFinalMonster();
-        if (monster === finalMonster) {
-            this.openingSequence?.stopHelpSounds();
-        }
-        let monsterHidden = false;
-        const hideMonster = () => {
-            if (monsterHidden) return;
-            monsterHidden = true;
-            monster.setPresentationActive(false);
-            if (monster.node) {
-                monster.node.active = false;
-            }
-            if (this.activeBattleMonster === monster) this.activeBattleMonster = null;
-            if (monster === finalMonster) this.showVictoryUI();
-        };
-        if (win) {
-            const isFinalMonster = monster === finalMonster;
-            let battleResolved = false;
-            const finishWin = () => {
-                if (battleResolved) return;
-                battleResolved = true;
-                // 攻击命中：怪物立刻停攻击并播放死亡动画。
-                if (this.grid) this.grid.removeMonster(monster);
-                if (this.player) this.player.power += rewardPower;
-                if (isFinalMonster) AudioManager.playBossDie();
-                else AudioManager.playMonsterDie();
-                this.camera?.getComponent(CameraFollow)?.shake();
-                monster.playDie(hideMonster);
-                // 死亡动画兜底：异常（动画不播�?骨骼失效）时强制结束
-                this.scheduleOnce(hideMonster, 3);
-                this.rewards?.startExpOrbDrop(monster, () => this.rewards?.enqueuePlayerPowerGain(rewardPower));
-            };
-            if (isFinalMonster) {
-                this.finalBossCinematic?.playAttackSequence(
-                    this.player,
-                    monster,
-                    rewardPower,
-                    finishWin,
-                    () => {},
-                );
-            } else {
-                playPlayerAttack(() => {
-                    finishWin();
-                    this.battling = false;
-                }, finishWin);
-                monster.playAttack();
-            }
-        } else {
-            const profile = this.playerRoles?.getCurrentProfile();
-            const battleDistance = monster === finalMonster
-                ? (profile?.bossMonsterBattleDistance ?? monster.battleRadius)
-                : (profile?.normalMonsterBattleDistance ?? monster.battleRadius);
-            const dodgeTarget = this.grid?.findDodgeEscapePosition(
-                this.player.node.position,
-                monster,
-                battleDistance,
-                DodgeConfig.distance,
-                DodgeConfig.exitPadding,
-                -DodgeConfig.visualBackDistance * this.player.getFacing(),
-                DodgeConfig.visualVerticalOffset,
-                DodgeConfig.visualWallClearance,
-            ) || this.player.node.position.clone();
-
-            let dodgeFinished = false;
-            let dodgeStarted = false;
-            let monsterAttackFinished = false;
-            let battleReleased = false;
-            const releaseBattle = () => {
-                if (battleReleased || !dodgeFinished || !monsterAttackFinished) return;
-                battleReleased = true;
-                this.battling = false;
-                if (this.activeBattleMonster === monster) this.activeBattleMonster = null;
-            };
-
-            const startDodge = () => {
-                if (dodgeStarted || !this.player || !this.player.node.isValid) return;
-                dodgeStarted = true;
-                if (!useBigMonsterAttack) AudioManager.playMonsterAttack(false);
-                this.player.playDodgeTo(
-                    dodgeTarget,
-                    DodgeConfig.moveDuration,
-                    DodgeConfig.animationDuration,
-                    () => {
-                        dodgeFinished = true;
-                        releaseBattle();
-                    },
-                );
-            };
-
-            playPlayerAttack(undefined, undefined, false);
-            if (useBigMonsterAttack) AudioManager.playMonsterAttack(true);
-            monster.playAttackThenIdle(() => {
-                // 个别怪物素材若缺少 event_hit，在攻击结束处兜底触发，避免战斗锁死。
-                startDodge();
-                monsterAttackFinished = true;
-                releaseBattle();
-            }, startDodge);
-        }
-    }
 
     /** 角色死亡：显示失败面板。 */
     private showDeathUI(): void {
@@ -591,7 +576,7 @@ export class GameManager extends Component {
 
     /** 结果界面出现后统一冻结操作；胜利流程不播放角色死亡动画。 */
     private lockResultState(): void {
-        this.activeBattleMonster = null;
+        this.battle?.clear();
         this.finalBossCinematic?.resetForResult();
         this.monsterGuide?.dismiss();
         this.monsterGlow?.hide();

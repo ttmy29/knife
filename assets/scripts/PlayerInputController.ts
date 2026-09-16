@@ -15,9 +15,6 @@ export class PlayerInputController {
         private readonly getUiLayer: () => Node | null,
         private readonly getOpeningActive: () => boolean,
         private readonly getBattling: () => boolean,
-        private readonly getFinalMonster: () => Monster | null,
-        private readonly getNormalMonsterBattleDistance: () => number | undefined,
-        private readonly getBossMonsterBattleDistance: () => number | undefined,
         private readonly glow: MonsterGlowController | null,
         private readonly dismissMonsterGuide: () => boolean,
     ) {}
@@ -132,13 +129,10 @@ export class PlayerInputController {
         const movePath = grid.buildMovePath(startCell, result.path, player.node.position.clone());
         const monsterHit = grid.firstMonsterOnPath(movePath);
         if (monsterHit) {
-            const distanceOverride = monsterHit.monster === this.getFinalMonster()
-                ? this.getBossMonsterBattleDistance()
-                : this.getNormalMonsterBattleDistance();
             const battlePath = grid.buildBattleApproachPath(
                 player.node.position,
                 monsterHit,
-                distanceOverride,
+                monsterHit.monster.battleRadius,
             );
             if (battlePath) {
                 const displayPath = selectedMonster === monsterHit.monster ? battlePath : movePath;

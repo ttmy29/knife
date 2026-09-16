@@ -31,11 +31,16 @@ export const ResourcePath = {
         Dachui: 'baoxiang/baoxiang/dachui',
         Kuijia: 'baoxiang/baoxiang/kuijia',
         Toukui: 'baoxiang/baoxiang/toukui',
+        FireDao: 'baoxiang/baoxiang/fireDao',
+        Trop: 'baoxiang/baoxiang/trop',
+        Wheel: 'baoxiang/baoxiang/wheel',
 
-        Role: 'roles/role/role',
+        Role: 'roles/role/role4',
         Role1: 'roles/role/role1',
         Role2: 'roles/role/role2',
         Role3: 'roles/role/role3',
+        DeadEffect: 'roles/role/deadEffect',
+        Boom: 'roles/role/boom',
         Mount: 'baoxiang/baoxiang/mount',
 
         Monster1: 'monsters/monster/monster1',
@@ -129,11 +134,6 @@ export const ResourcePath = {
     },
 
     Spine: {
-        Hit: {
-            Attack2: 'roles/effect/hit/100001_hit_2',
-            Attack4: 'roles/effect/hit/100001_hit_4',
-            ChargeAttack4: 'roles/effect/hit/10009_hit_4',
-        },
         Role: {
             OrcHero: [
                 'roles/兽人主角/100001',

@@ -1,4 +1,4 @@
-import { _decorator, AudioClip, Prefab, sp } from 'cc';
+import { _decorator, AudioClip, Prefab } from 'cc';
 import type { MonsterPrefabType } from './GameConfig';
 
 const { ccclass, property } = _decorator;
@@ -8,6 +8,8 @@ export type GamePrefabKey =
     | 'role1'
     | 'role2'
     | 'role3'
+    | 'deadEffect'
+    | 'boom'
     | 'fail'
     | 'victory'
     | 'box'
@@ -17,6 +19,9 @@ export type GamePrefabKey =
     | 'kuijia'
     | 'toukui'
     | 'mount'
+    | 'fireDao'
+    | 'trop'
+    | 'wheel'
     | MonsterPrefabType;
 
 export type GameAudioKey =
@@ -52,6 +57,8 @@ export class GameAssets {
     @property(Prefab) role1: Prefab | null = null;
     @property(Prefab) role2: Prefab | null = null;
     @property(Prefab) role3: Prefab | null = null;
+    @property(Prefab) deadEffect: Prefab | null = null;
+    @property(Prefab) boom: Prefab | null = null;
 
     @property(Prefab) monster1: Prefab | null = null;
     @property(Prefab) monster2: Prefab | null = null;
@@ -65,13 +72,12 @@ export class GameAssets {
     @property(Prefab) kuijia: Prefab | null = null;
     @property(Prefab) toukui: Prefab | null = null;
     @property(Prefab) mount: Prefab | null = null;
+    @property(Prefab) fireDao: Prefab | null = null;
+    @property(Prefab) trop: Prefab | null = null;
+    @property(Prefab) wheel: Prefab | null = null;
 
     @property(Prefab) fail: Prefab | null = null;
     @property(Prefab) victory: Prefab | null = null;
-
-    @property(sp.SkeletonData) hit100001Attack2: sp.SkeletonData | null = null;
-    @property(sp.SkeletonData) hit100001Attack4: sp.SkeletonData | null = null;
-    @property(sp.SkeletonData) hit10009Attack4: sp.SkeletonData | null = null;
 
     @property(AudioClip) bgm: AudioClip | null = null;
     @property(AudioClip) attack1: AudioClip | null = null;
