@@ -44,6 +44,7 @@ export class Monster extends Component {
     private facing = 1;
     private spineNode: Node | null = null;
     private skeletons: sp.Skeleton[] = [];
+    private attackEffect: sp.Skeleton | null = null;
     private animName = 'idle';
     private attackAnimation = 'phyattack';
     private deathAnimation = 'die';
@@ -91,6 +92,11 @@ export class Monster extends Component {
         this.skeletons = this.spineNode
             ? this.spineNode.getComponentsInChildren(sp.Skeleton)
             : this.node.getComponentsInChildren(sp.Skeleton);
+        const effectNode = this.node.getChildByName('Effect');
+        this.attackEffect = effectNode?.getComponent(sp.Skeleton)
+            || effectNode?.getComponentInChildren(sp.Skeleton)
+            || null;
+        if (effectNode) effectNode.active = false;
         this.playIdle();
         if (registerOnGrid) this.activateOnGrid();
     }
@@ -291,6 +297,7 @@ export class Monster extends Component {
         for (const skeleton of this.skeletons) {
             if (skeleton && skeleton.isValid) skeleton.timeScale = value;
         }
+        if (this.attackEffect?.isValid) this.attackEffect.timeScale = value;
     }
 
     /** 播放一次指定动画，完成后恢复 idle。 */
@@ -314,46 +321,77 @@ export class Monster extends Component {
 
     /** 攻击动画播完回调 */
     playAttack(onComplete?: () => void): void {
+        this.listenForAttackHit();
         this.animName = '';
         this.playAnim(this.attackAnimation, false);
-        this.onceAnimComplete(onComplete);
+        this.onceAnimComplete(() => {
+            this.clearAttackHitListeners();
+            if (onComplete) onComplete();
+        });
     }
 
     /** 开场演出使用：攻击一次，命中事件触发反馈，结束后恢复待机。 */
     playAttackThenIdle(onComplete?: () => void, onHit?: () => void): void {
-        let hitTriggered = false;
-        const clearEventListeners = (): void => {
-            for (const skeleton of this.skeletons) {
-                if (skeleton && skeleton.isValid) skeleton.setEventListener(() => {});
-            }
-        };
-        if (onHit) {
-            for (const skeleton of this.skeletons) {
-                if (!skeleton || !skeleton.isValid) continue;
-                skeleton.setEventListener((_entry, event) => {
-                    if (hitTriggered || typeof event === 'number' || event.data?.name !== 'hit') return;
-                    hitTriggered = true;
-                    clearEventListeners();
-                    onHit();
-                });
-            }
-        }
+        this.listenForAttackHit(onHit);
         this.playOnceThenIdle(this.attackAnimation, () => {
-            clearEventListeners();
+            this.clearAttackHitListeners();
             if (onComplete) onComplete();
         });
     }
 
     playAttackLoop(): void {
+        this.listenForAttackHit(undefined, true);
         this.animName = '';
         this.playAnim(this.attackAnimation, true);
     }
 
     /** 死亡动画播完回调（播一次停在最后一帧） */
     playDie(onComplete?: () => void): void {
+        this.clearAttackHitListeners();
+        this.hideAttackEffect();
         this.animName = '';
         this.playAnim(this.deathAnimation, false);
         this.onceAnimComplete(onComplete);
+    }
+
+    /** 主体 attack 的 hit 事件触发 Effect；普通攻击只响应一次，循环攻击每轮响应。 */
+    private listenForAttackHit(onHit?: () => void, repeat = false): void {
+        let hitTriggered = false;
+        for (const skeleton of this.skeletons) {
+            if (!skeleton || !skeleton.isValid) continue;
+            skeleton.setEventListener((_entry, event) => {
+                if (typeof event === 'number' || event.data?.name !== 'hit') return;
+                if (!repeat && hitTriggered) return;
+                hitTriggered = true;
+                this.playAttackHitEffect();
+                if (onHit) onHit();
+                if (!repeat) this.clearAttackHitListeners();
+            });
+        }
+    }
+
+    private clearAttackHitListeners(): void {
+        for (const skeleton of this.skeletons) {
+            if (skeleton && skeleton.isValid) skeleton.setEventListener(() => {});
+        }
+    }
+
+    private playAttackHitEffect(): void {
+        const effect = this.attackEffect;
+        if (!effect?.isValid || !effect.node?.isValid) return;
+        effect.node.active = true;
+        effect.setCompleteListener(() => {
+            effect.setCompleteListener(() => {});
+            if (effect.node?.isValid) effect.node.active = false;
+        });
+        effect.setAnimation(0, 'ultracombo', false);
+    }
+
+    private hideAttackEffect(): void {
+        const effect = this.attackEffect;
+        if (!effect?.isValid || !effect.node?.isValid) return;
+        effect.setCompleteListener(() => {});
+        effect.node.active = false;
     }
 
     private onceAnimComplete(cb?: () => void): void {
@@ -380,6 +418,8 @@ export class Monster extends Component {
     }
 
     onDestroy(): void {
+        this.clearAttackHitListeners();
+        this.hideAttackEffect();
         if (this.grid && this.registeredOnGrid) this.grid.removeMonster(this);
         if (this.externalColorNode && this.externalColorNode.isValid) this.externalColorNode.destroy();
         if (this.externalLabelNode && this.externalLabelNode.isValid) this.externalLabelNode.destroy();

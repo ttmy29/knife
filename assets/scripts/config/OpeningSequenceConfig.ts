@@ -53,7 +53,7 @@ export const OpeningSequenceConfig: OpeningSequenceProfile = {
     cameraStartDelay: 0.5,
     cameraZoomDuration: 1,//0.3
     cameraTargetOffsetX: -100,
-    playerRollStart: { x: -120, y: 510 },
+    playerRollStart: { x: 780, y: 220 },
     temporaryPlayerLabelText: '1888',
     playerRollControl: { x: 650, y: 510 },
     playerRollDuration: 1,

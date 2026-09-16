@@ -76,8 +76,19 @@ export class PlayerInputController {
             return;
         }
 
-        const cell = this.getTouchCell(event);
+        const highlightedMonster = this.glow?.currentMonster || null;
+        const releasedOnHighlightedMonster = !!highlightedMonster
+            && !!this.glow?.containsScreenPoint(event.getLocation());
         this.glow?.hideLater();
+        if (releasedOnHighlightedMonster && highlightedMonster?.node?.isValid) {
+            this.handleMoveTouch(
+                new Vec2(highlightedMonster.gridCol, highlightedMonster.gridRow),
+                highlightedMonster,
+            );
+            return;
+        }
+
+        const cell = this.getTouchCell(event);
         if (!cell) return;
 
         this.handleMoveTouch(cell);
@@ -109,7 +120,7 @@ export class PlayerInputController {
         return grid.worldToGrid(local);
     }
 
-    private handleMoveTouch(cell: Vec2): void {
+    private handleMoveTouch(cell: Vec2, selectedMonster: Monster | null = null): void {
         const grid = this.getGrid();
         const player = this.getPlayer();
         if (!grid || !player) return;
@@ -130,7 +141,8 @@ export class PlayerInputController {
                 distanceOverride,
             );
             if (battlePath) {
-                this.getPathLine()?.drawPath(movePath, movePath[movePath.length - 1]);
+                const displayPath = selectedMonster === monsterHit.monster ? battlePath : movePath;
+                this.getPathLine()?.drawPath(displayPath, displayPath[displayPath.length - 1]);
                 player.moveTo(battlePath, monsterHit.monster);
                 return;
             }

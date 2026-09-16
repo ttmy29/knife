@@ -47,7 +47,7 @@ export const Level1: LevelData = {
     tileSize: 20,
     playerSpawn: { col: 87, row: 20 },
     playerSpawnWorld: { x: -160, y: -250, z: 0 },
-    playerScale: { x: -0.6, y: 0.6, z: 1 },
+    playerScale: { x: 0.6, y: 0.6, z: 1 },
     playerRoleScales: {
         role1: { x: 0.6, y: 0.6, z: 1 },
         role2: { x: 0.6, y: 0.6, z: 1 },

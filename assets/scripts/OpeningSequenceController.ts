@@ -132,7 +132,7 @@ export class OpeningSequenceController {
         );
     }
 
-    /** 所有资源完成实例化后，对准临时位置的角色并开始整段开场演出。 */
+    /** 所有资源完成实例化后，对准开场怪物并开始整段开场演出。 */
     start(monster: Monster): void {
         if (!this.activeState || this.introStarted) return;
         const player = this.getPlayer();
@@ -187,14 +187,14 @@ export class OpeningSequenceController {
         let zoomReady = false;
         const tryFinishCamera = (): void => {
             if (!movementReady || !zoomReady) return;
-            if (player.node.isValid) follow.target = player.node;
+            if (monster.node.isValid) follow.target = monster.node;
             cameraReady = true;
             tryStartMonsterAttack();
         };
         const beginCameraTransition = (): void => {
             if (!this.activeState || !player.node.isValid || !camera.node.isValid) return;
             follow.moveToWorldPosition(
-                player.node.worldPosition,
+                monster.node.worldPosition,
                 OpeningSequenceConfig.cameraMoveDuration,
                 () => {
                     movementReady = true;
@@ -254,6 +254,8 @@ export class OpeningSequenceController {
         if (!this.activeState || !player || !player.node.isValid) return;
 
         const playerNode = player.node;
+        const cameraFollow = this.getCamera()?.getComponent(CameraFollow) || null;
+        if (cameraFollow) cameraFollow.target = playerNode;
         const spineNode = playerNode.getChildByName('spine');
         const spineOpacity = spineNode?.getComponent(UIOpacity) || null;
         const originalSpineOpacity = spineOpacity?.opacity ?? 255;

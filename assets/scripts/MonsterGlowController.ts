@@ -1,4 +1,4 @@
-import { Component, Node, UITransform, Vec3 } from 'cc';
+import { Component, Node, UITransform, Vec2, Vec3 } from 'cc';
 import { Monster } from './Monster';
 
 export class MonsterGlowController {
@@ -37,6 +37,13 @@ export class MonsterGlowController {
 
     get currentMonster(): Monster | null {
         return this.glowingMonster;
+    }
+
+    /** 松手点是否仍在当前显示的黄光范围内。 */
+    containsScreenPoint(screenPoint: Vec2): boolean {
+        if (!this.glowHolder?.active || !this.glowingMonster?.node?.isValid) return false;
+        const glowTransform = this.glowHolder.getComponent(UITransform);
+        return !!glowTransform?.hitTest(screenPoint);
     }
 
     show(monster: Monster): void {

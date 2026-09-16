@@ -2,18 +2,16 @@ import { Node, sp } from 'cc';
 import { Chest } from './Chest';
 import { Grid } from './Grid';
 import { Player } from './Player';
+import { ChestPositionConfig, EquipmentName } from './config/ChestPositionConfig';
 import { MonsterGuideConfig } from './config/MonsterGuideConfig';
 import { PlayerRoleProfiles, PlayerRoleType } from './config/PlayerRoleConfig';
 import { AudioManager } from './core/AudioManager';
 import { PrefabManager } from './core/PrefabManager';
 
 type RewardRoleType = 'role1' | 'role2' | 'role3';
-type EquipmentName = 'dachui' | 'dao' | 'kuijia' | 'toukui' | 'mount';
 
 interface EquipmentSpawnConfig {
     name: EquipmentName;
-    x: number;
-    y: number;
     create: () => Promise<Node>;
 }
 
@@ -62,7 +60,8 @@ export class ChestController {
         try {
             const box = await PrefabManager.createBox();
             box.name = 'box';
-            box.setPosition(-620, 130, 0);
+            const position = ChestPositionConfig.box;
+            box.setPosition(position.x, position.y, position.z);
             boxLayer.addChild(box);
 
             const chest = box.getComponent(Chest) || box.addComponent(Chest);
@@ -79,11 +78,11 @@ export class ChestController {
         if (!boxLayer || !grid) return;
 
         const items: EquipmentSpawnConfig[] = [
-            { name: 'dachui', x: 660, y: -65, create: () => PrefabManager.createDachui() },
-            { name: 'dao', x: 580, y: -500, create: () => PrefabManager.createDao() },
-            { name: 'kuijia', x: 365, y: -315, create: () => PrefabManager.createKuijia() },
-            { name: 'toukui', x: -175, y: -350, create: () => PrefabManager.createToukui() },
-            { name: 'mount', x: 35, y: 385, create: () => PrefabManager.createMount() },
+            { name: 'dachui', create: () => PrefabManager.createDachui() },
+            { name: 'dao', create: () => PrefabManager.createDao() },
+            { name: 'kuijia', create: () => PrefabManager.createKuijia() },
+            { name: 'toukui', create: () => PrefabManager.createToukui() },
+            { name: 'mount', create: () => PrefabManager.createMount() },
         ];
 
         const requestedNames = new Set<EquipmentName>(names);
@@ -91,7 +90,8 @@ export class ChestController {
             try {
                 const node = await item.create();
                 node.name = item.name;
-                node.setPosition(item.x, item.y, 0);
+                const position = ChestPositionConfig.equipment[item.name];
+                node.setPosition(position.x, position.y, position.z);
                 boxLayer.addChild(node);
                 this.playEquipmentIdle(node);
                 if (item.name === MonsterGuideConfig.targetNodeName) {
@@ -157,7 +157,8 @@ export class ChestController {
 
         try {
             const node = await PrefabManager.createPowerSuit();
-            node.setPosition(685, -70, 0);
+            const position = ChestPositionConfig.powerSuit;
+            node.setPosition(position.x, position.y, position.z);
             node.setScale(0.3, 0.3, 1);
             boxLayer.addChild(node);
 
