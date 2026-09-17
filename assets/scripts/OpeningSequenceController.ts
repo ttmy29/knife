@@ -145,11 +145,26 @@ export class OpeningSequenceController {
         const playBossAttack = (beginCameraTransition: () => void): void => {
             if (!this.activeState || !monster.node.isValid) return;
             this.moveMonsterLayerAbovePlayer();
-            monster.playAttackThenIdle(() => {
+            const onAttackComplete = () => {
                 this.restoreMonsterLayer();
                 // 只在完整攻击动画结束后开始镜头移动；不再响应 hit 事件或播放角色受击音效。
                 this.startCameraTransitionDelay(beginCameraTransition);
-            });
+            };
+            if (OpeningSequenceConfig.monsterAttackAnimation === 'jumpDown') {
+                monster.playPresentationDrop(
+                    OpeningSequenceConfig.jumpDownNodeStart,
+                    OpeningSequenceConfig.jumpDownNodeEnd,
+                    OpeningSequenceConfig.jumpDownNodeDropDuration,
+                );
+                monster.playTimedAttackThenIdle(
+                    OpeningSequenceConfig.monsterAttackAnimation,
+                    OpeningSequenceConfig.jumpDownHitDelay,
+                    onAttackComplete,
+                );
+            } else {
+                // attack 保留原逻辑：由 Spine 动画内的 hit 事件触发 Effect。
+                monster.playAttackThenIdle(onAttackComplete);
+            }
         };
 
         if (!camera) {
@@ -197,7 +212,10 @@ export class OpeningSequenceController {
         follow.moveToWorldPosition(
             monster.node.worldPosition,
             OpeningSequenceConfig.cameraBossMoveDuration,
-            () => playBossAttack(beginCameraTransition),
+            () => {
+                AudioManager.playShout();
+                playBossAttack(beginCameraTransition);
+            },
             camera.orthoHeight,
         );
     }

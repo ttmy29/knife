@@ -1,0 +1,55 @@
+
+BOSS1.png
+size: 1994, 1319
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+shadow
+  rotate: true
+  xy: 2, 105
+  size: 1212, 629
+  orig: 1258, 658
+  offset: 18, 7
+  index: -1
+右手
+  rotate: true
+  xy: 633, 828
+  size: 489, 803
+  orig: 489, 803
+  offset: 0, 0
+  index: -1
+右脚
+  rotate: false
+  xy: 1346, 2
+  size: 393, 482
+  orig: 393, 482
+  offset: 0, 0
+  index: -1
+头
+  rotate: true
+  xy: 1438, 486
+  size: 418, 524
+  orig: 432, 526
+  offset: 13, 1
+  index: -1
+左手
+  rotate: true
+  xy: 1438, 906
+  size: 411, 549
+  orig: 411, 549
+  offset: 0, 0
+  index: -1
+左脚
+  rotate: false
+  xy: 1741, 155
+  size: 251, 329
+  orig: 251, 329
+  offset: 0, 0
+  index: -1
+身体
+  rotate: true
+  xy: 633, 127
+  size: 699, 711
+  orig: 699, 711
+  offset: 0, 0
+  index: -1

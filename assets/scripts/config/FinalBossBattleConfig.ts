@@ -1,4 +1,6 @@
 export interface FinalBossBattleProfile {
+    /** wheel 击杀怪物时 light 特效的播放时间（秒）。 */
+    lightDuration: number;
     /** 击败最终 Boss 时角色连续攻击次数。 */
     attackCount: number;
     /** 每次攻击命中后，Boss 数字分几段下降。 */
@@ -15,6 +17,8 @@ export interface FinalBossBattleProfile {
     maskCameraOffsetX: number;
     /** 第二次终结攻击使用的时间倍率。 */
     finisherSlowScale: number;
+    /** 技能开始释放后，等待多久进入慢放（秒）。 */
+    skillSlowStartDelay: number;
     /** 第二次攻击开始后，等待多久进入慢放（秒）。 */
     finisherSlowStartDelay: number;
     /** 第二次攻击开始后，动画时间到多少秒播放音效并触发扣数字；受慢放倍率影响。 */
@@ -30,18 +34,20 @@ export interface FinalBossBattleProfile {
 }
 
 export const FinalBossBattleConfig: FinalBossBattleProfile = {
+    lightDuration: 1.5,
     attackCount: 2,
     powerDropSteps: 3,
     powerDropStepInterval: 0.06,
     maskFadeInDuration: 0.1,
     maskCameraZoomScale: 0.8,
     maskCameraZoomDuration: 0.3,
-    maskCameraOffsetX: -100,
-    finisherSlowScale: 0.2,//0.35
+    maskCameraOffsetX: 150,
+    finisherSlowScale: 0.2,//0.35 慢放倍数
+    skillSlowStartDelay: 0.4,
     finisherSlowStartDelay: 0.6,
     finisherAttackSoundDelay: 0.8,//0.6+0.2*0.5=0.7,,,相当于1.1s才播放攻击音效;
     finisherHeHaDelay: 0.5,
-    finisherSlowDuration: 2,//0.45
+    finisherSlowDuration: 3,//0.45 慢放时间，
     finisherDeathDelay: 1.8,
     finisherHitStopDuration: 0.06,
 };

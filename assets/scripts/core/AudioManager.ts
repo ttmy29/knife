@@ -1,6 +1,7 @@
 import { AudioClip, AudioSource, Node, warn } from 'cc';
 import { AttackAudioType, ResourcePath } from '../config/ResourceConfig';
 import { GameAssets, GameAudioKey } from '../GameAssets';
+import type { SkillName } from '../config/SkillConfig';
 import { BundleManager } from './BundleManager';
 
 const AUDIO_PATHS: Record<GameAudioKey, string> = {
@@ -25,6 +26,10 @@ const AUDIO_PATHS: Record<GameAudioKey, string> = {
     roar: ResourcePath.Audio.Roar,
     smallAttack: ResourcePath.Audio.smallAttack,
     bigAttack: ResourcePath.Audio.bigAttack,
+    roleAttack: ResourcePath.Audio.RoleAttack,
+    skill1: ResourcePath.Audio.Skill1,
+    skill2: ResourcePath.Audio.Skill2,
+    skill3: ResourcePath.Audio.Skill3,
 };
 
 export class AudioManager {
@@ -33,6 +38,7 @@ export class AudioManager {
     private static bgmClip: AudioClip | null = null;
     private static readonly bgmVolume = 0.8;
     private static readonly sfxVolume = 2;
+    private static readonly roleSkillVolume = 4;
 
     static init(owner: Node, assets: GameAssets): void {
         this.source = owner.getComponent(AudioSource) || owner.addComponent(AudioSource);
@@ -62,6 +68,16 @@ export class AudioManager {
 
     static playMonsterAttack(useBigAttack: boolean): void {
         void this.playSfxByKey(useBigAttack ? 'bigAttack' : 'smallAttack');
+    }
+
+    /** 技能释放时先播放角色攻击声，再叠加对应技能声。 */
+    static playRoleSkill(skill: SkillName, includeRoleAttack = true): void {
+        const skillAudio: Record<SkillName, GameAudioKey> = {
+            trop: 'skill1',
+            fireDao: 'skill2',
+            wheel: 'skill3',
+        };
+        void this.playRoleSkillSequence(skillAudio[skill], includeRoleAttack);
     }
 
     static async preload(keys: readonly GameAudioKey[]): Promise<void> {
@@ -177,6 +193,21 @@ export class AudioManager {
         const clip = await this.getClip(key);
         if (!clip || !source.isValid) return;
         source.playOneShot(clip, this.sfxVolume);
+    }
+
+    private static async playRoleSkillSequence(
+        skillKey: GameAudioKey,
+        includeRoleAttack: boolean,
+    ): Promise<void> {
+        const source = this.source;
+        if (!source) return;
+        const [roleAttack, skill] = await Promise.all([
+            includeRoleAttack ? this.getClip('roleAttack') : Promise.resolve(null),
+            this.getClip(skillKey),
+        ]);
+        if (!source.isValid) return;
+        if (roleAttack) source.playOneShot(roleAttack, this.roleSkillVolume);
+        if (skill) source.playOneShot(skill, this.roleSkillVolume);
     }
 
     private static async getClip(key: GameAudioKey): Promise<AudioClip | null> {

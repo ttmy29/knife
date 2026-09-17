@@ -2,7 +2,7 @@
   "ver": "1.0.27",
   "importer": "image",
   "imported": true,
-  "uuid": "e433408d-08fe-4d3c-b14d-66d8d3e6c46b",
+  "uuid": "73d17ab1-37c9-4e17-90dc-88ef915e6974",
   "files": [
     ".json",
     ".png"
@@ -10,14 +10,14 @@
   "subMetas": {
     "6c48a": {
       "importer": "texture",
-      "uuid": "e433408d-08fe-4d3c-b14d-66d8d3e6c46b@6c48a",
-      "displayName": "BOSS挥砍",
+      "uuid": "73d17ab1-37c9-4e17-90dc-88ef915e6974@6c48a",
+      "displayName": "BOSS砸地",
       "id": "6c48a",
       "name": "texture",
       "userData": {
         "wrapModeS": "clamp-to-edge",
         "wrapModeT": "clamp-to-edge",
-        "imageUuidOrDatabaseUri": "e433408d-08fe-4d3c-b14d-66d8d3e6c46b",
+        "imageUuidOrDatabaseUri": "73d17ab1-37c9-4e17-90dc-88ef915e6974",
         "isUuid": true,
         "visible": false,
         "minfilter": "linear",
@@ -34,21 +34,21 @@
     },
     "f9941": {
       "importer": "sprite-frame",
-      "uuid": "e433408d-08fe-4d3c-b14d-66d8d3e6c46b@f9941",
-      "displayName": "BOSS挥砍",
+      "uuid": "73d17ab1-37c9-4e17-90dc-88ef915e6974@f9941",
+      "displayName": "BOSS砸地",
       "id": "f9941",
       "name": "spriteFrame",
       "userData": {
         "trimThreshold": 1,
         "rotated": false,
-        "offsetX": 6.5,
-        "offsetY": -7,
-        "trimX": 19,
-        "trimY": 22,
-        "width": 1935,
-        "height": 170,
-        "rawWidth": 1960,
-        "rawHeight": 200,
+        "offsetX": 0,
+        "offsetY": 0,
+        "trimX": 2,
+        "trimY": 2,
+        "width": 287,
+        "height": 530,
+        "rawWidth": 291,
+        "rawHeight": 534,
         "borderTop": 0,
         "borderBottom": 0,
         "borderLeft": 0,
@@ -60,17 +60,17 @@
         "meshType": 0,
         "vertices": {
           "rawPosition": [
-            -967.5,
-            -85,
+            -143.5,
+            -265,
             0,
-            967.5,
-            -85,
+            143.5,
+            -265,
             0,
-            -967.5,
-            85,
+            -143.5,
+            265,
             0,
-            967.5,
-            85,
+            143.5,
+            265,
             0
           ],
           "indexes": [
@@ -82,38 +82,38 @@
             3
           ],
           "uv": [
-            19,
-            178,
-            1954,
-            178,
-            19,
-            8,
-            1954,
-            8
+            2,
+            532,
+            289,
+            532,
+            2,
+            2,
+            289,
+            2
           ],
           "nuv": [
-            0.009693877551020408,
-            0.04,
-            0.996938775510204,
-            0.04,
-            0.009693877551020408,
-            0.89,
-            0.996938775510204,
-            0.89
+            0.006872852233676976,
+            0.003745318352059925,
+            0.993127147766323,
+            0.003745318352059925,
+            0.006872852233676976,
+            0.9962546816479401,
+            0.993127147766323,
+            0.9962546816479401
           ],
           "minPos": [
-            -967.5,
-            -85,
+            -143.5,
+            -265,
             0
           ],
           "maxPos": [
-            967.5,
-            85,
+            143.5,
+            265,
             0
           ]
         },
         "isUuid": true,
-        "imageUuidOrDatabaseUri": "e433408d-08fe-4d3c-b14d-66d8d3e6c46b@6c48a",
+        "imageUuidOrDatabaseUri": "73d17ab1-37c9-4e17-90dc-88ef915e6974@6c48a",
         "atlasUuid": "",
         "trimType": "auto"
       },
@@ -129,6 +129,6 @@
     "type": "sprite-frame",
     "hasAlpha": true,
     "fixAlphaTransparencyArtifacts": false,
-    "redirect": "e433408d-08fe-4d3c-b14d-66d8d3e6c46b@6c48a"
+    "redirect": "73d17ab1-37c9-4e17-90dc-88ef915e6974@6c48a"
   }
 }

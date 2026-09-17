@@ -2,6 +2,7 @@ import { Camera, Component, director, Node, tween, UIOpacity } from 'cc';
 import { CameraFollow } from './CameraFollow';
 import { Monster } from './Monster';
 import { Player } from './Player';
+import { PlayerSkillController } from './PlayerSkillController';
 import { FinalBossBattleConfig } from './config/FinalBossBattleConfig';
 import { MonsterProfiles } from './config/MonsterConfig';
 import { PlayerRoleProfile } from './config/PlayerRoleConfig';
@@ -14,6 +15,12 @@ export class FinalBossCinematicController {
     private deathTimer: ReturnType<typeof setTimeout> | null = null;
     private finisherPlayer: Player | null = null;
     private finisherMonster: Monster | null = null;
+    private skillSlowMotionUsed = false;
+    private skillSlowMotionActive = false;
+    private slowSkillController: PlayerSkillController | null = null;
+    private battleCameraStarted = false;
+    private skillAttackMaskState: 'pending' | 'playing' | 'complete' = 'pending';
+    private readonly skillAttackMaskCallbacks: Array<() => void> = [];
     private cameraOrthoHeight: number | null = null;
     private cameraOffsetX: number | null = null;
 
@@ -26,6 +33,64 @@ export class FinalBossCinematicController {
 
     get currentFinisherMonster(): Monster | null {
         return this.finisherMonster;
+    }
+
+    /** 进入最终 Boss 战时缩放并横向移动镜头，整场战斗只执行一次。 */
+    startBattleCamera(): void {
+        if (this.battleCameraStarted) return;
+        this.battleCameraStarted = true;
+        this.startCameraZoom();
+    }
+
+    /** 技能释放前复用近战第二击的黑幕与镜头处理。 */
+    prepareSkillAttackMask(onComplete?: () => void): void {
+        if (this.skillAttackMaskState === 'complete') {
+            if (onComplete) onComplete();
+            return;
+        }
+        if (onComplete) this.skillAttackMaskCallbacks.push(onComplete);
+        if (this.skillAttackMaskState === 'playing') return;
+        this.skillAttackMaskState = 'playing';
+        this.fadeInMask(() => {
+            this.skillAttackMaskState = 'complete';
+            const callbacks = this.skillAttackMaskCallbacks.splice(0);
+            for (const callback of callbacks) callback();
+        });
+    }
+
+    isSkillAttackMaskComplete(): boolean {
+        return this.skillAttackMaskState === 'complete';
+    }
+
+    /** 技能开始释放后，按配置延迟进入慢放。 */
+    startSkillSlowMotion(
+        player: Player,
+        monster: Monster,
+        skills: PlayerSkillController,
+    ): void {
+        if (this.skillSlowMotionUsed) return;
+        this.skillSlowMotionUsed = true;
+        this.skillSlowMotionActive = true;
+        this.slowSkillController = skills;
+        const delay = Math.max(0, FinalBossBattleConfig.skillSlowStartDelay);
+        const beginSlowMotion = () => {
+            if (!this.skillSlowMotionActive) return;
+            this.slowStartTimer = null;
+            this.startSlowMotion(player, monster);
+            skills.setPlaybackTimeScale(Math.max(0.01, FinalBossBattleConfig.finisherSlowScale));
+        };
+        if (delay === 0) beginSlowMotion();
+        else this.slowStartTimer = setTimeout(beginSlowMotion, delay * 1000);
+    }
+
+    /** 技能命中前恢复正常速度，确保 Boss 死亡动画不受慢放影响。 */
+    finishSkillSlowMotion(): void {
+        if (!this.skillSlowMotionActive) return;
+        this.skillSlowMotionActive = false;
+        this.clearTimers();
+        director.getScheduler().setTimeScale(1);
+        this.restoreAnimationTimeScale();
+        this.restoreSkillTimeScale();
     }
 
     playAttackSequence(
@@ -135,9 +200,16 @@ export class FinalBossCinematicController {
         }
         director.getScheduler().setTimeScale(1);
         this.restoreAnimationTimeScale();
+        this.restoreSkillTimeScale();
+        this.skillSlowMotionUsed = false;
+        this.skillSlowMotionActive = false;
+        this.battleCameraStarted = false;
+        this.skillAttackMaskState = 'pending';
+        this.skillAttackMaskCallbacks.length = 0;
     }
 
     resetForResult(): void {
+        this.restoreAll();
         this.restoreCameraZoom();
         const maskOpacity = this.getMaskNode()?.getComponent(UIOpacity);
         if (maskOpacity) maskOpacity.opacity = 0;
@@ -233,8 +305,10 @@ export class FinalBossCinematicController {
         monster.setAnimationTimeScale(scale);
         this.slowTimer = setTimeout(() => {
             this.slowTimer = null;
+            this.skillSlowMotionActive = false;
             scheduler.setTimeScale(1);
             this.restoreAnimationTimeScale();
+            this.restoreSkillTimeScale();
         }, Math.max(0, FinalBossBattleConfig.finisherSlowDuration) * 1000);
     }
 
@@ -282,6 +356,11 @@ export class FinalBossCinematicController {
         if (this.finisherMonster && this.finisherMonster.node && this.finisherMonster.node.isValid) {
             this.finisherMonster.setAnimationTimeScale(1);
         }
+    }
+
+    private restoreSkillTimeScale(): void {
+        this.slowSkillController?.setPlaybackTimeScale(1);
+        this.slowSkillController = null;
     }
 
     private animateMonsterPowerDrop(

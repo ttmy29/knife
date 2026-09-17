@@ -17,6 +17,7 @@ export class PlayerInputController {
         private readonly getBattling: () => boolean,
         private readonly glow: MonsterGlowController | null,
         private readonly dismissMonsterGuide: () => boolean,
+        private readonly selectAttackTarget: (monster: Monster | null) => boolean,
     ) {}
 
     init(): void {
@@ -78,6 +79,8 @@ export class PlayerInputController {
             && !!this.glow?.containsScreenPoint(event.getLocation());
         this.glow?.hideLater();
         if (releasedOnHighlightedMonster && highlightedMonster?.node?.isValid) {
+            const attackInPlace = this.selectAttackTarget(highlightedMonster);
+            if (attackInPlace) return;
             this.handleMoveTouch(
                 new Vec2(highlightedMonster.gridCol, highlightedMonster.gridRow),
                 highlightedMonster,
@@ -88,6 +91,7 @@ export class PlayerInputController {
         const cell = this.getTouchCell(event);
         if (!cell) return;
 
+        this.selectAttackTarget(null);
         this.handleMoveTouch(cell);
     };
 

@@ -3,6 +3,16 @@ export interface OpeningSequenceProfile {
     loadingMaskDuration: number;
     /** 开场执行攻击动作的怪物名称。 */
     targetMonsterName: string;
+    /** 开场怪物动作；attack 使用 Spine hit 事件，jumpDown 使用配置的命中延迟。 */
+    monsterAttackAnimation: 'attack' | 'jumpDown';
+    /** jumpDown 开始后触发攻击 Effect 的时间（秒）。 */
+    jumpDownHitDelay: number;
+    /** jumpDown 开始时数字和颜色节点的位置。 */
+    jumpDownNodeStart: { x: number; y: number };
+    /** jumpDown 落地后数字和颜色节点的位置。 */
+    jumpDownNodeEnd: { x: number; y: number };
+    /** 数字和颜色节点跟随 jumpDown 下落的时间（秒）。 */
+    jumpDownNodeDropDuration: number;
     /** 开场怪物开始攻击后，延迟播放角色受击音效的时间（秒）。 */
     playerHitSoundDelay: number;
     /** 角色落地后第一次播放 Help1 的延迟（秒）。 */
@@ -46,6 +56,11 @@ export interface OpeningSequenceProfile {
 export const OpeningSequenceConfig: OpeningSequenceProfile = {
     loadingMaskDuration: 1,
     targetMonsterName: 'monster1',
+    monsterAttackAnimation: 'jumpDown',
+    jumpDownHitDelay: 0.17,
+    jumpDownNodeStart: { x: 0, y: 600 },
+    jumpDownNodeEnd: { x: 0, y: 170 },
+    jumpDownNodeDropDuration: 0.17,
     playerHitSoundDelay: 1,
     firstHelpSoundDelay: 5,
     helpSoundInterval: 6,

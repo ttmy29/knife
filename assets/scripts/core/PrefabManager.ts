@@ -11,6 +11,8 @@ type PrefabKey =
     | 'role3'
     | 'deadEffect'
     | 'boom'
+    | 'boom2'
+    | 'light'
     | 'fail'
     | 'victory'
     | 'box'
@@ -34,6 +36,8 @@ const PREFAB_LOAD_CONFIG: Record<PrefabKey, { bundle: string; path: string }> = 
     role3: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Role3 },
     deadEffect: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.DeadEffect },
     boom: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Boom },
+    boom2: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Boom2 },
+    light: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Light },
     fail: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Fail },
     victory: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Victory },
     box: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Box },
@@ -83,6 +87,14 @@ export class PrefabManager {
 
     static loadBoom(): Promise<Prefab> {
         return this.loadPrefab('boom');
+    }
+
+    static loadBoom2(): Promise<Prefab> {
+        return this.loadPrefab('boom2');
+    }
+
+    static loadLight(): Promise<Prefab> {
+        return this.loadPrefab('light');
     }
 
     static loadFail(): Promise<Prefab> {
@@ -141,6 +153,14 @@ export class PrefabManager {
 
     static createBoom(): Node {
         return this.createLoadedPrefab('boom');
+    }
+
+    static createBoom2(): Node {
+        return this.createLoadedPrefab('boom2');
+    }
+
+    static createLight(): Node {
+        return this.createLoadedPrefab('light');
     }
 
     static createFail(): Node {

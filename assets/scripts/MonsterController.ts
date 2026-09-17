@@ -102,9 +102,18 @@ export class MonsterController {
             monster.setAttackAnimation(MonsterProfiles[data.prefab].attackAnimation);
             monster.setDeathAnimation(MonsterProfiles[data.prefab].deathAnimation);
             monster.init(grid, false);
-            this.movePresentationToLayers(monster);
-
             const isOpeningMonster = data.name === OpeningSequenceConfig.targetMonsterName;
+            if (isOpeningMonster && this.isOpeningSequenceActive()) {
+                monster.prepareOpeningAttack(OpeningSequenceConfig.monsterAttackAnimation);
+            }
+            this.movePresentationToLayers(monster);
+            if (isOpeningMonster && OpeningSequenceConfig.monsterAttackAnimation === 'jumpDown') {
+                const position = this.isOpeningSequenceActive()
+                    ? OpeningSequenceConfig.jumpDownNodeStart
+                    : OpeningSequenceConfig.jumpDownNodeEnd;
+                monster.setPresentationLocalPosition(position.x, position.y);
+            }
+
             if (isOpeningMonster) {
                 this.openingMonster = monster;
             }

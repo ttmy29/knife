@@ -56,9 +56,9 @@ export const Level1: LevelData = {
     playerPower: 4407,
     monsters: [
         { name: 'monster1', prefab: 'monster1', x: 891, y: 239, power: 4800, battleRadius: 90, scaleX: -1,scaleY:1 },//3300
-        { name: 'monster4', prefab: 'monster4', x: -360, y: 0, power: 310, scaleX: -0.5 },//-107
+        { name: 'monster4', prefab: 'monster4', x: -360, y: 0, power: 184, scaleX: -0.5 },//-107
         { name: 'monster2', prefab: 'monster3', x: 200, y: -180, power: 664, scaleX: -0.5 },//400
-        { name: 'monster3', prefab: 'monster4', x: -580, y: -190, power: 184, scaleX: 0.5 },//-60 -20
+        { name: 'monster3', prefab: 'monster4', x: -580, y: -190, power: 310, scaleX: 0.5 },//-60 -20
         { name: 'monster5', prefab: 'monster3', x: -150, y: 85, power: 512, scaleX: -0.5 },
         { name: 'monster6', prefab: 'monster4', x: 560, y: -320, power: 850, scaleX: -0.5 },
         { name: 'monster7', prefab: 'monster3', x: -280, y: -180, power: 50, scaleX: 0.5 },

@@ -39,9 +39,11 @@ export interface SkillConfig {
     /** 技能最终触发的怪物死亡动画。 */
     monsterDeathAnimation?: string;
     /** 技能命中并击杀怪物时生成的额外特效。 */
-    monsterImpactEffect?: 'boom';
+    monsterImpactEffect?: 'boom' | 'boom2' | 'light';
     /** 额外命中特效播放的 Spine 动画。 */
     monsterImpactEffectAnimation?: string;
+    /** 击杀怪物时是否播放通用 deadEffect。 */
+    playDeadEffect: boolean;
     forceHideTimeout: number;
 }
 
@@ -69,13 +71,14 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         animationLoop: false,
         randomWeight: 1,
         attackRange: 280,
-        attackInterval: 2,
+        attackInterval: 1,
         hitDelay: 0.2,
         segmentCount: 3,
         segmentInterval: 0.12,
         segmentDistance: 100,
         monsterHitAnimation: 'hitFly',
         monsterDeathAnimation: 'die',
+        playDeadEffect: true,
         forceHideTimeout: 3,
     },
     fireDao: {
@@ -92,24 +95,28 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         projectileAngleOffset: 0,
         monsterImpactEffect: 'boom',
         monsterImpactEffectAnimation: 'molotovAttackhits',
-        projectileSpeed: 600,
+        projectileSpeed: 400,
         hitRadius: 40,
         maxTravelTime: 3,
+        playDeadEffect: false,
         forceHideTimeout: 3,
     },
     wheel: {
         id: 'wheel',
         effectNodeName: 'wheel',
         castType: 'projectile',
-        animationName: 'animation1',
+        animationName: 'animation',//animation1
         animationSpeed: 1,
         animationLoop: true,
         randomWeight: 1,
         attackRange: 280,
         attackInterval: 1,
-        projectileSpeed: 600,
+        projectileSpeed: 400,
         hitRadius: 40,
         maxTravelTime: 3,
+        monsterImpactEffect: 'boom2',
+        monsterImpactEffectAnimation: 'skill1_hit',
+        playDeadEffect: false,
         forceHideTimeout: 3,
     },
 };

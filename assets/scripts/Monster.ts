@@ -1,7 +1,11 @@
-import { _decorator, Component, Label, Node, Vec2, UITransform, UIOpacity, sp, tween } from 'cc';
+import { _decorator, Component, Label, Node, Vec2, Vec3, UITransform, UIOpacity, sp, tween, Tween } from 'cc';
 import { Grid } from './Grid';
 
 const { ccclass, property } = _decorator;
+
+interface PresentationDropProgress {
+    value: number;
+}
 
 /** 怪物：占格 + 数值；由 GameManager 对场景里摆放好的怪物节点 init */
 @ccclass('Monster')
@@ -45,7 +49,9 @@ export class Monster extends Component {
     private spineNode: Node | null = null;
     private skeletons: sp.Skeleton[] = [];
     private attackEffect: sp.Skeleton | null = null;
-    private animName = 'idle';
+    private presentationDropTween: Tween<PresentationDropProgress> | null = null;
+    /** 留空以确保 init 时真正向 Spine 设置一次 idle，而不是误判为已在播放。 */
+    private animName = '';
     private attackAnimation = 'phyattack';
     private deathAnimation = 'die';
     private registeredOnGrid = false;
@@ -97,6 +103,7 @@ export class Monster extends Component {
             || effectNode?.getComponentInChildren(sp.Skeleton)
             || null;
         if (effectNode) effectNode.active = false;
+        this.animName = '';
         this.playIdle();
         if (registerOnGrid) this.activateOnGrid();
     }
@@ -168,6 +175,45 @@ export class Monster extends Component {
         this.externalLabelNode = labelNode;
         this.labelRoot = null;
         return true;
+    }
+
+    /** 设置原 Node（数字和颜色）的怪物本地坐标，兼容拆分后的全局渲染层。 */
+    setPresentationLocalPosition(x: number, y: number): void {
+        if (this.labelRoot?.isValid) {
+            this.labelRoot.setPosition(x, y, this.labelRoot.position.z);
+            return;
+        }
+        const transform = this.node.getComponent(UITransform);
+        if (!transform) return;
+        const worldPosition = transform.convertToWorldSpaceAR(new Vec3(x, y, 0));
+        if (this.externalColorNode?.isValid) this.externalColorNode.setWorldPosition(worldPosition);
+        if (this.externalLabelNode?.isValid) this.externalLabelNode.setWorldPosition(worldPosition);
+    }
+
+    /** 让数字和颜色与 jumpDown 同步下降。 */
+    playPresentationDrop(
+        start: { x: number; y: number },
+        end: { x: number; y: number },
+        duration: number,
+    ): void {
+        this.presentationDropTween?.stop();
+        this.setPresentationLocalPosition(start.x, start.y);
+        const progress: PresentationDropProgress = { value: 0 };
+        this.presentationDropTween = tween(progress)
+            .to(Math.max(0, duration), { value: 1 }, {
+                onUpdate: (state: PresentationDropProgress) => {
+                    const t = state.value;
+                    this.setPresentationLocalPosition(
+                        start.x + (end.x - start.x) * t,
+                        start.y + (end.y - start.y) * t,
+                    );
+                },
+            })
+            .call(() => {
+                this.setPresentationLocalPosition(end.x, end.y);
+                this.presentationDropTween = null;
+            })
+            .start();
     }
 
     private getPresentationOpacity(node: Node): number {
@@ -273,6 +319,11 @@ export class Monster extends Component {
     private playAnim(name: string, loop: boolean): void {
         const skeletons = this.skeletons || [];
         if (skeletons.length === 0) return;
+        // 同步组件自身的 loop 属性；视口裁剪关闭再恢复 Skeleton 时，
+        // idle 会和其他怪物一样继续循环，而 jumpDown 仍只播放一次。
+        for (const sk of skeletons) {
+            if (sk && sk.isValid) sk.loop = loop;
+        }
         if (this.animName === name) return;
         this.animName = name;
         for (const sk of skeletons) {
@@ -282,6 +333,15 @@ export class Monster extends Component {
 
     playIdle(): void {
         this.playAnim('idle', true);
+    }
+
+    /** 开场镜头到位前停在指定动作首帧，避免从 idle 或其他默认动作硬切。 */
+    prepareOpeningAttack(animationName: string): void {
+        this.clearAttackHitListeners();
+        this.hideAttackEffect();
+        this.animName = '';
+        this.playAnim(animationName, false);
+        this.setAnimationTimeScale(0);
     }
 
     setAttackAnimation(name: string): void {
@@ -357,9 +417,33 @@ export class Monster extends Component {
 
     /** 开场演出使用：攻击一次，命中事件触发反馈，结束后恢复待机。 */
     playAttackThenIdle(onComplete?: () => void, onHit?: () => void): void {
+        this.setAnimationTimeScale(1);
         this.listenForAttackHit(onHit);
         this.playOnceThenIdle(this.attackAnimation, () => {
             this.clearAttackHitListeners();
+            if (onComplete) onComplete();
+        });
+    }
+
+    /** 没有 hit 事件的开场动作：按配置时间触发一次 Effect，完成后恢复待机。 */
+    playTimedAttackThenIdle(
+        animationName: string,
+        hitDelay: number,
+        onComplete?: () => void,
+        onHit?: () => void,
+    ): void {
+        this.setAnimationTimeScale(1);
+        this.clearAttackHitListeners();
+        let finished = false;
+        const triggerHit = () => {
+            if (finished || !this.node?.isValid) return;
+            this.playAttackHitEffect();
+            if (onHit) onHit();
+        };
+        this.scheduleOnce(triggerHit, Math.max(0, hitDelay));
+        this.playOnceThenIdle(animationName, () => {
+            finished = true;
+            this.unschedule(triggerHit);
             if (onComplete) onComplete();
         });
     }
@@ -452,6 +536,9 @@ export class Monster extends Component {
     }
 
     onDestroy(): void {
+        this.presentationDropTween?.stop();
+        this.presentationDropTween = null;
+        this.unscheduleAllCallbacks();
         this.clearAttackHitListeners();
         this.hideAttackEffect();
         if (this.grid && this.registeredOnGrid) this.grid.removeMonster(this);

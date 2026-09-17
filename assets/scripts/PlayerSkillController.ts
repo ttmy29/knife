@@ -2,6 +2,7 @@ import { Component, instantiate, Node, sp, Vec3 } from 'cc';
 import { Monster } from './Monster';
 import { Player } from './Player';
 import { SkillConfig, SkillConfigs, SkillName } from './config/SkillConfig';
+import { AudioManager } from './core/AudioManager';
 
 interface ActiveProjectile {
     node: Node;
@@ -18,8 +19,10 @@ export class PlayerSkillController {
     private currentSkill: SkillName | null = null;
     private readonly projectiles: ActiveProjectile[] = [];
     private readonly activeInstances = new Set<Node>();
+    private readonly animationBaseSpeeds = new Map<Node, number>();
     private player: Player | null = null;
     private casting = false;
+    private playbackTimeScale = 1;
 
     constructor(
         private readonly host: Component,
@@ -59,23 +62,45 @@ export class PlayerSkillController {
         return this.casting;
     }
 
+    /** 同步控制技能 Spine 与飞行过程的播放速度。 */
+    setPlaybackTimeScale(scale: number): void {
+        this.playbackTimeScale = Math.max(0.01, scale);
+        for (const instance of this.activeInstances) {
+            if (!instance?.isValid) continue;
+            const baseSpeed = this.animationBaseSpeeds.get(instance) ?? 1;
+            for (const skeleton of instance.getComponentsInChildren(sp.Skeleton)) {
+                skeleton.timeScale = baseSpeed * this.playbackTimeScale;
+            }
+        }
+    }
+
     /** 始终使用最后捡到的技能；返回 false 表示尚未解锁或对应模板不可用。 */
     castCurrentSkill(
         player: Player,
         monster: Monster,
         onImpact: () => void,
         onComplete: () => void,
+        isFinalBoss = false,
     ): boolean {
         if (this.isCasting()) return false;
         const config = this.getCurrentConfig();
         if (!config) return false;
         if (!this.findTemplate(player, config.effectNodeName)) return false;
         if (config.castType === 'target-area' && Math.max(1, config.segmentCount || 1) > 1) {
-            return this.castSegmentedTargetArea(player, monster, config, onImpact, onComplete);
+            return this.castSegmentedTargetArea(
+                player,
+                monster,
+                config,
+                onImpact,
+                onComplete,
+                isFinalBoss,
+            );
         }
         const instance = this.createEffectInstance(player, config);
         if (!instance) return false;
         this.casting = true;
+        if (isFinalBoss) AudioManager.playHeHa();
+        AudioManager.playRoleSkill(config.id, !isFinalBoss);
 
         let impacted = false;
         let finished = false;
@@ -88,6 +113,7 @@ export class PlayerSkillController {
             if (finished) return;
             finished = true;
             this.activeInstances.delete(instance);
+            this.animationBaseSpeeds.delete(instance);
             if (instance.isValid) instance.destroy();
             this.casting = false;
             onComplete();
@@ -135,14 +161,15 @@ export class PlayerSkillController {
                 continue;
             }
 
-            projectile.elapsed += Math.max(0, dt);
+            const scaledDt = Math.max(0, dt) * this.playbackTimeScale;
+            projectile.elapsed += scaledDt;
             const current = node.worldPosition;
             const dx = projectile.targetPosition.x - current.x;
             const dy = projectile.targetPosition.y - current.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             const hitRadius = Math.max(0, projectile.config.hitRadius || 0);
             const speed = Math.max(0, projectile.config.projectileSpeed || 0);
-            const step = speed * Math.max(0, dt);
+            const step = speed * scaledDt;
             if (distance <= hitRadius || distance <= step) {
                 node.setWorldPosition(projectile.targetPosition);
                 this.projectiles.splice(index, 1);
@@ -173,10 +200,12 @@ export class PlayerSkillController {
             if (instance?.isValid) instance.destroy();
         }
         this.activeInstances.clear();
+        this.animationBaseSpeeds.clear();
         this.projectiles.length = 0;
         this.player = null;
         this.currentSkill = null;
         this.casting = false;
+        this.playbackTimeScale = 1;
     }
 
     /** 地刺从角色朝怪物方向按固定段长依次出现，最后一段不强制落在怪物位置。 */
@@ -186,6 +215,7 @@ export class PlayerSkillController {
         config: SkillConfig,
         onImpact: () => void,
         onComplete: () => void,
+        isFinalBoss: boolean,
     ): boolean {
         const segmentCount = Math.max(1, Math.round(config.segmentCount || 1));
         const segmentInterval = Math.max(0, config.segmentInterval || 0);
@@ -201,6 +231,8 @@ export class PlayerSkillController {
         let castFinished = false;
         let impacted = false;
         this.casting = true;
+        if (isFinalBoss) AudioManager.playHeHa();
+        AudioManager.playRoleSkill(config.id, !isFinalBoss);
 
         const tryFinishCast = () => {
             if (castFinished) return;
@@ -229,6 +261,7 @@ export class PlayerSkillController {
                     if (segmentFinished) return;
                     segmentFinished = true;
                     this.activeInstances.delete(instance);
+                    this.animationBaseSpeeds.delete(instance);
                     if (instance.isValid) instance.destroy();
                     remaining--;
                     tryFinishCast();
@@ -295,8 +328,9 @@ export class PlayerSkillController {
             completed = true;
             onComplete();
         };
+        this.animationBaseSpeeds.set(instance, Math.max(0, config.animationSpeed));
         for (const skeleton of skeletons) {
-            skeleton.timeScale = Math.max(0, config.animationSpeed);
+            skeleton.timeScale = Math.max(0, config.animationSpeed) * this.playbackTimeScale;
             if (onComplete && !config.animationLoop) skeleton.setCompleteListener(complete);
             skeleton.setAnimation(0, config.animationName, config.animationLoop);
         }

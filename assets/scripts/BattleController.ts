@@ -5,13 +5,15 @@ import { Monster } from './Monster';
 import { Player } from './Player';
 import { PlayerSkillController } from './PlayerSkillController';
 import { BaseRoleSpecialBattleConfig } from './config/PlayerRoleConfig';
+import { AudioManager } from './core/AudioManager';
 
 type ResolveMonsterDefeat = (
     monster: Monster,
     hitAnimation?: string,
     deathAnimation?: string,
-    impactEffect?: 'boom',
+    impactEffect?: 'boom' | 'boom2' | 'light',
     impactEffectAnimation?: string,
+    playDeadEffect?: boolean,
 ) => void;
 
 /** 负责进入怪物范围后的停步、战力判断、技能等待和角色死亡流程。 */
@@ -78,7 +80,10 @@ export class BattleController {
         const win = player.power > monster.power;
         const rewardPower = monster.power;
         const finalMonster = this.getFinalMonster();
-        if (monster === finalMonster) this.stopHelpSounds();
+        if (monster === finalMonster) {
+            this.stopHelpSounds();
+            this.getFinalBossCinematic()?.startBattleCamera();
+        }
         if (!win) {
             playPlayerAttack(undefined, undefined, false);
             this.host.scheduleOnce(() => {
@@ -86,6 +91,7 @@ export class BattleController {
                 if (!currentPlayer || !currentPlayer.node.isValid) return;
                 currentPlayer.power = 0;
                 currentPlayer.setDisplayedPower(0);
+                AudioManager.playRoleDie();
                 currentPlayer.playDie(() => {
                     this.battling = false;
                     this.clearActiveMonster(monster);
@@ -95,13 +101,22 @@ export class BattleController {
             return;
         }
 
+        // 路径经过怪物时仍会进入其战斗范围并承受攻击，
+        // 但只有玩家明确点击锁定的怪物才允许角色反击。
+        if (!autoSkills?.isSelectedTarget(monster)) {
+            this.battling = false;
+            this.clearActiveMonster(monster);
+            return;
+        }
+
         const isFinalMonster = monster === finalMonster;
         let battleResolved = false;
         const finishWin = (
             hitAnimation?: string,
             deathAnimation?: string,
-            impactEffect?: 'boom',
+            impactEffect?: 'boom' | 'boom2' | 'light',
             impactEffectAnimation?: string,
+            playDeadEffect?: boolean,
         ) => {
             if (battleResolved) return;
             battleResolved = true;
@@ -111,6 +126,7 @@ export class BattleController {
                 deathAnimation,
                 impactEffect,
                 impactEffectAnimation,
+                playDeadEffect,
             );
         };
         const finishSkill = () => {
@@ -142,18 +158,32 @@ export class BattleController {
                 }
             }
 
+            const bossCinematic = isFinalMonster ? this.getFinalBossCinematic() : null;
+            if (bossCinematic && currentSkillConfig && !bossCinematic.isSkillAttackMaskComplete()) {
+                bossCinematic.prepareSkillAttackMask(trySkillBattle);
+                return;
+            }
             const skillCasted = skills?.castCurrentSkill(
                 currentPlayer,
                 monster,
-                () => finishWin(
-                    currentSkillConfig?.monsterHitAnimation,
-                    currentSkillConfig?.monsterDeathAnimation,
-                    currentSkillConfig?.monsterImpactEffect,
-                    currentSkillConfig?.monsterImpactEffectAnimation,
-                ),
-                finishSkill,
+                () => {
+                    bossCinematic?.finishSkillSlowMotion();
+                    finishWin(
+                        currentSkillConfig?.monsterHitAnimation,
+                        currentSkillConfig?.monsterDeathAnimation,
+                        currentSkillConfig?.monsterImpactEffect,
+                        currentSkillConfig?.monsterImpactEffectAnimation,
+                        currentSkillConfig?.playDeadEffect,
+                    );
+                },
+                () => {
+                    bossCinematic?.finishSkillSlowMotion();
+                    finishSkill();
+                },
+                isFinalMonster,
             ) || false;
             if (skillCasted) {
+                if (skills) bossCinematic?.startSkillSlowMotion(currentPlayer, monster, skills);
                 autoSkills?.resetCooldown();
                 return;
             }

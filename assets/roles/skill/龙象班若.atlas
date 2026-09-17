@@ -1,0 +1,83 @@
+
+龙象班若.png
+size: 440,344
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+ef/bagua4
+  rotate: true
+  xy: 2, 2
+  size: 340, 354
+  orig: 354, 354
+  offset: 4, 0
+  index: -1
+ef/dd_4
+  rotate: false
+  xy: 358, 235
+  size: 42, 42
+  orig: 50, 50
+  offset: 4, 4
+  index: -1
+ef/xz_01
+  rotate: false
+  xy: 402, 239
+  size: 35, 38
+  orig: 100, 100
+  offset: 11, 27
+  index: -1
+ef/xz_02
+  rotate: true
+  xy: 358, 279
+  size: 63, 43
+  orig: 100, 100
+  offset: 11, 21
+  index: -1
+ef/xz_03
+  rotate: true
+  xy: 358, 157
+  size: 76, 41
+  orig: 100, 100
+  offset: 11, 21
+  index: -1
+ef/xz_04
+  rotate: true
+  xy: 358, 78
+  size: 77, 40
+  orig: 100, 100
+  offset: 11, 21
+  index: -1
+ef/xz_06
+  rotate: true
+  xy: 400, 78
+  size: 77, 38
+  orig: 100, 100
+  offset: 12, 21
+  index: -1
+ef/xz_08
+  rotate: false
+  xy: 358, 40
+  size: 78, 36
+  orig: 100, 100
+  offset: 11, 21
+  index: -1
+ef/xz_10
+  rotate: true
+  xy: 401, 157
+  size: 76, 35
+  orig: 100, 100
+  offset: 12, 21
+  index: -1
+ef/xz_12
+  rotate: false
+  xy: 358, 3
+  size: 74, 35
+  orig: 100, 100
+  offset: 13, 22
+  index: -1
+ef/xz_14
+  rotate: false
+  xy: 403, 323
+  size: 16, 19
+  orig: 100, 100
+  offset: 71, 28
+  index: -1

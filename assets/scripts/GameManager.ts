@@ -1,5 +1,5 @@
 import {
-    _decorator, Animation, Component, Node, Graphics, sp,
+    _decorator, Component, Node, Graphics,
     Color, Vec3, Camera,
 } from 'cc';
 import { Grid } from './Grid';
@@ -14,6 +14,7 @@ import { FinalBossCinematicController } from './FinalBossCinematicController';
 import { MonsterController } from './MonsterController';
 import { MonsterGlowController } from './MonsterGlowController';
 import { MonsterGuideController } from './MonsterGuideController';
+import { MonsterDeathController } from './MonsterDeathController';
 import { OpeningSequenceController } from './OpeningSequenceController';
 import { PlayerInputController } from './PlayerInputController';
 import { PlayerRoleController } from './PlayerRoleController';
@@ -27,7 +28,6 @@ import { BattleController } from './BattleController';
 import { PrefabManager } from './core/PrefabManager';
 import { AttackAudioType } from './config/ResourceConfig';
 import { GameAssets } from './GameAssets';
-import { SkillSystemConfig } from './config/SkillConfig';
 
 const { ccclass, property } = _decorator;
 
@@ -61,13 +61,13 @@ export class GameManager extends Component {
     private autoSkills: AutoSkillController | null = null;
     private playerInput: PlayerInputController | null = null;
     private monsterController: MonsterController | null = null;
+    private monsterDeaths: MonsterDeathController | null = null;
     private finalBossCinematic: FinalBossCinematicController | null = null;
     private monsterGlow: MonsterGlowController | null = null;
     private monsterGuide: MonsterGuideController | null = null;
     private openingSequence: OpeningSequenceController | null = null;
     private backgroundAssetsReady = false;
     private openingFinished = false;
-    private readonly defeatedMonsters = new Set<Monster>();
 
     onLoad(): void {
         PrefabManager.init(this.gameAssets);
@@ -125,16 +125,22 @@ export class GameManager extends Component {
             () => (this.openingSequence?.active || false)
                 || !this.backgroundAssetsReady
                 || (this.battle?.isBattling() || false),
-            (monster) => this.defeatedMonsters.has(monster),
+            (monster) => this.monsterDeaths?.isDefeated(monster) || false,
             () => this.monsterController?.getFinalMonster() || null,
-            () => this.openingSequence?.stopHelpSounds(),
-            (monster, config) => this.resolveMonsterDefeat(
+            () => this.finalBossCinematic,
+            () => {
+                this.openingSequence?.stopHelpSounds();
+                this.finalBossCinematic?.startBattleCamera();
+            },
+            (monster, config) => this.monsterDeaths?.resolve(
                 monster,
                 config.monsterHitAnimation,
                 config.monsterDeathAnimation,
                 config.monsterImpactEffect,
                 config.monsterImpactEffectAnimation,
+                config.playDeadEffect,
             ),
+            () => this.pathLine?.clear(),
         );
         this.playerRoles = new PlayerRoleController(
             this.node,
@@ -153,26 +159,39 @@ export class GameManager extends Component {
             () => this.player,
             () => this.playerSkills,
             () => this.autoSkills,
-            (monster) => this.defeatedMonsters.has(monster),
+            (monster) => this.monsterDeaths?.isDefeated(monster) || false,
             () => this.monsterController?.getFinalMonster() || null,
             () => this.finalBossCinematic,
             () => this.playerRoles?.getCurrentPrefabRoleType() === 'role',
             () => this.monsterGlow?.hide(),
             () => this.pathLine?.clear(),
             () => this.openingSequence?.stopHelpSounds(),
-            (monster, hitAnimation, deathAnimation, impactEffect, impactEffectAnimation) => {
-                this.resolveMonsterDefeat(
+            (monster, hitAnimation, deathAnimation, impactEffect, impactEffectAnimation, playDeadEffect) => {
+                this.monsterDeaths?.resolve(
                     monster,
                     hitAnimation,
                     deathAnimation,
                     impactEffect,
                     impactEffectAnimation,
+                    playDeadEffect,
                 );
             },
             () => this.showDeathUI(),
         );
         this.rewards = new RewardController(this, this.node, () => this.player);
         this.rewards.init();
+        this.monsterDeaths = new MonsterDeathController(
+            this,
+            this.node,
+            () => this.grid,
+            () => this.player,
+            () => this.autoSkills,
+            () => this.rewards,
+            () => this.camera,
+            () => this.monsterController?.getFinalMonster() || null,
+            (monster) => this.battle?.clearActiveMonster(monster),
+            () => this.showVictoryUI(),
+        );
         this.chests = new ChestController(
             this.node,
             () => this.grid,
@@ -200,6 +219,11 @@ export class GameManager extends Component {
             () => this.battle?.isBattling() || false,
             this.monsterGlow,
             () => this.monsterGuide?.dismiss() || false,
+            (monster) => {
+                if (monster) return this.autoSkills?.selectTarget(monster) || false;
+                this.autoSkills?.clearSelectedTarget();
+                return false;
+            },
         );
         this.playerInput.init();
         this.monsterController.startViewportCulling();
@@ -213,6 +237,7 @@ export class GameManager extends Component {
         this.monsterGuide?.destroy();
         this.monsterGlow?.hide();
         this.rewards?.destroy();
+        this.monsterDeaths?.destroy();
         this.monsterController?.destroy();
         this.playerInput?.destroy();
         this.battle?.clear();
@@ -282,8 +307,9 @@ export class GameManager extends Component {
         const audioKeys = [
             'attack1', 'attack2', 'attack3',
             'smallAttack', 'bigAttack',
-            'monsterDie', 'expCollect', 'levelUp', 'cheer',
-            'heHa', 'bossAttack', 'bossDie', 'fail', 'victory',
+            'roleAttack', 'skill1', 'skill2', 'skill3',
+            'monsterDie', 'roleDie', 'expCollect', 'levelUp', 'cheer',
+            'shout', 'heHa', 'bossAttack', 'bossDie', 'fail', 'victory',
         ] as const;
         const tasks: Promise<unknown>[] = [
             PrefabManager.loadMonster('monster3'),
@@ -293,6 +319,8 @@ export class GameManager extends Component {
             PrefabManager.loadVictory(),
             PrefabManager.loadDeadEffect(),
             PrefabManager.loadBoom(),
+            PrefabManager.loadBoom2(),
+            PrefabManager.loadLight(),
         ];
 
         await Promise.all(tasks.map(async task => {
@@ -340,7 +368,6 @@ export class GameManager extends Component {
 
         await loadingMaskDelay;
         await Promise.all([directSceneTask, roleLoadingTask, backgroundLoadingTask]);
-        AudioManager.playRoar();
 
         if (!this.openingSequence?.active) {
             this.openingFinished = true;
@@ -394,161 +421,6 @@ export class GameManager extends Component {
         this.playerInput?.update(dt);
         this.playerSkills?.update(dt);
         this.autoSkills?.update(dt);
-    }
-
-    /** 所有攻击共用一次性击杀结算，避免同一怪物重复掉落多批经验。 */
-    private resolveMonsterDefeat(
-        monster: Monster,
-        hitAnimation?: string,
-        deathAnimation?: string,
-        impactEffect?: 'boom',
-        impactEffectAnimation?: string,
-    ): boolean {
-        if (this.defeatedMonsters.has(monster)) return false;
-        const player = this.player;
-        if (!player || !player.node.isValid) return false;
-        this.defeatedMonsters.add(monster);
-        this.autoSkills?.releaseTarget(monster);
-        this.grid?.removeMonster(monster);
-        player.clearPendingMonster(monster);
-
-        const rewardPower = monster.power;
-        player.power += rewardPower;
-        const isFinalMonster = monster === this.monsterController?.getFinalMonster();
-        if (isFinalMonster) AudioManager.playBossDie();
-        else AudioManager.playMonsterDie();
-        this.camera?.getComponent(CameraFollow)?.shake();
-
-        let monsterHidden = false;
-        const hideMonster = () => {
-            if (monsterHidden) return;
-            monsterHidden = true;
-            monster.setPresentationActive(false);
-            if (monster.node?.isValid) monster.node.active = false;
-            this.battle?.clearActiveMonster(monster);
-            if (isFinalMonster) this.showVictoryUI();
-        };
-        if (SkillSystemConfig.playMonsterDeathAnimation) {
-            const usableHitAnimation = hitAnimation && monster.hasUsableAnimation(hitAnimation)
-                ? hitAnimation
-                : undefined;
-            const requestedDeathIsMissing = !!deathAnimation
-                && !monster.hasUsableAnimation(deathAnimation);
-
-            // 部分怪物的 die 虽有名称但时长为 0；此时把 hitFly 直接作为死亡动画，
-            // deadEffect 与 hitFly 同时开始，避免 hitFly 播放两遍或瞬间隐藏。
-            if (usableHitAnimation && requestedDeathIsMissing) {
-                if (impactEffect === 'boom') {
-                    this.playMonsterBoomEffect(monster, impactEffectAnimation || 'molotovAttackhits');
-                }
-                this.playMonsterDeathEffect(monster);
-                monster.playHitReaction(usableHitAnimation, hideMonster);
-                this.scheduleOnce(hideMonster, SkillSystemConfig.monsterForceHideTimeout);
-                this.rewards?.startExpOrbDrop(
-                    monster,
-                    () => this.rewards?.enqueuePlayerPowerGain(rewardPower),
-                );
-                return true;
-            }
-
-            let deathStarted = false;
-            const startDeath = () => {
-                if (deathStarted || monsterHidden) return;
-                deathStarted = true;
-                if (impactEffect === 'boom') {
-                    this.playMonsterBoomEffect(monster, impactEffectAnimation || 'molotovAttackhits');
-                }
-                this.playMonsterDeathEffect(monster);
-                monster.playDie(hideMonster, deathAnimation);
-                this.scheduleOnce(hideMonster, SkillSystemConfig.monsterForceHideTimeout);
-            };
-            if (usableHitAnimation) {
-                monster.playHitReaction(usableHitAnimation, startDeath);
-                // 受击动画资源异常时仍继续死亡流程，避免怪物永久停留。
-                this.scheduleOnce(startDeath, SkillSystemConfig.monsterForceHideTimeout);
-            } else startDeath();
-        } else hideMonster();
-        this.rewards?.startExpOrbDrop(
-            monster,
-            () => this.rewards?.enqueuePlayerPowerGain(rewardPower),
-        );
-        return true;
-    }
-
-    /** 怪物开始 die 时，在 TempLayer 播放一次帧动画死亡特效。 */
-    private playMonsterDeathEffect(monster: Monster): void {
-        const tempLayer = this.node.getChildByName('TempLayer');
-        if (!tempLayer || !monster.node || !monster.node.isValid) return;
-
-        let effect: Node;
-        try {
-            effect = PrefabManager.createDeadEffect();
-        } catch (err) {
-            console.error('[GameManager] create deadEffect failed', err);
-            return;
-        }
-
-        const worldPosition = monster.node.worldPosition.clone();
-        worldPosition.y += SkillSystemConfig.deathEffectOffsetY;
-        effect.active = false;
-        tempLayer.addChild(effect);
-        effect.setWorldPosition(worldPosition);
-        effect.active = true;
-
-        let cleaned = false;
-        const cleanup = () => {
-            if (cleaned) return;
-            cleaned = true;
-            if (effect.isValid) effect.destroy();
-        };
-        const animation = effect.getComponent(Animation) || effect.getComponentInChildren(Animation);
-        if (!animation) {
-            console.warn('[GameManager] deadEffect Animation component is missing');
-            this.scheduleOnce(cleanup, 3);
-            return;
-        }
-        animation.once(Animation.EventType.FINISHED, cleanup);
-        animation.play('animation');
-        this.scheduleOnce(cleanup, 3);
-    }
-
-    /** fireDao 命中死亡时，在 TempLayer 播放一次爆炸 Spine。 */
-    private playMonsterBoomEffect(monster: Monster, animationName: string): void {
-        const tempLayer = this.node.getChildByName('TempLayer');
-        if (!tempLayer || !monster.node || !monster.node.isValid) return;
-
-        let effect: Node;
-        try {
-            effect = PrefabManager.createBoom();
-        } catch (err) {
-            console.error('[GameManager] create boom failed', err);
-            return;
-        }
-
-        const worldPosition = monster.node.worldPosition.clone();
-        effect.active = false;
-        tempLayer.addChild(effect);
-        effect.setWorldPosition(worldPosition);
-        effect.active = true;
-
-        let cleaned = false;
-        const cleanup = () => {
-            if (cleaned) return;
-            cleaned = true;
-            if (effect.isValid) effect.destroy();
-        };
-        const skeleton = effect.getComponent(sp.Skeleton) || effect.getComponentInChildren(sp.Skeleton);
-        if (!skeleton) {
-            console.warn('[GameManager] boom Skeleton component is missing');
-            this.scheduleOnce(cleanup, 3);
-            return;
-        }
-        skeleton.setCompleteListener(() => {
-            skeleton.setCompleteListener(() => {});
-            cleanup();
-        });
-        skeleton.setAnimation(0, animationName, false);
-        this.scheduleOnce(cleanup, 3);
     }
 
     private buildUI(): void {

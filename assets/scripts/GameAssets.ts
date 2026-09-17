@@ -10,6 +10,8 @@ export type GamePrefabKey =
     | 'role3'
     | 'deadEffect'
     | 'boom'
+    | 'boom2'
+    | 'light'
     | 'fail'
     | 'victory'
     | 'box'
@@ -45,7 +47,11 @@ export type GameAudioKey =
     | 'help2'
     | 'roar'
     | 'smallAttack'
-    | 'bigAttack';
+    | 'bigAttack'
+    | 'roleAttack'
+    | 'skill1'
+    | 'skill2'
+    | 'skill3';
 
 /**
  * 游戏直接资源引用。
@@ -59,6 +65,8 @@ export class GameAssets {
     @property(Prefab) role3: Prefab | null = null;
     @property(Prefab) deadEffect: Prefab | null = null;
     @property(Prefab) boom: Prefab | null = null;
+    @property(Prefab) boom2: Prefab | null = null;
+    @property(Prefab) light: Prefab | null = null;
 
     @property(Prefab) monster1: Prefab | null = null;
     @property(Prefab) monster2: Prefab | null = null;
@@ -100,6 +108,10 @@ export class GameAssets {
     @property(AudioClip) roar: AudioClip | null = null;
     @property(AudioClip) smallAttack: AudioClip | null = null;
     @property(AudioClip) bigAttack: AudioClip | null = null;
+    @property(AudioClip) roleAttack: AudioClip | null = null;
+    @property(AudioClip) skill1: AudioClip | null = null;
+    @property(AudioClip) skill2: AudioClip | null = null;
+    @property(AudioClip) skill3: AudioClip | null = null;
 
     getPrefab(key: GamePrefabKey): Prefab | null {
         return this[key] as Prefab | null;

@@ -1,0 +1,111 @@
+
+BOSS砸地.png
+size: 291,534
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+ef/dd_4
+  rotate: false
+  xy: 245, 50
+  size: 42, 42
+  orig: 50, 50
+  offset: 4, 4
+  index: -1
+ef/dilie025
+  rotate: true
+  xy: 148, 241
+  size: 291, 136
+  orig: 300, 142
+  offset: 3, 6
+  index: -1
+ef/quan12
+  rotate: false
+  xy: 2, 410
+  size: 144, 122
+  orig: 150, 150
+  offset: 3, 3
+  index: -1
+ef/quan33
+  rotate: false
+  xy: 2, 153
+  size: 132, 121
+  orig: 150, 150
+  offset: 9, 9
+  index: -1
+ef/quan33 (2)
+  rotate: false
+  xy: 2, 276
+  size: 132, 132
+  orig: 150, 150
+  offset: 9, 9
+  index: -1
+ef/shit
+  rotate: true
+  xy: 136, 159
+  size: 80, 77
+  orig: 80, 77
+  offset: 0, 0
+  index: -1
+ef/suishi (2)
+  rotate: true
+  xy: 107, 55
+  size: 96, 87
+  orig: 96, 88
+  offset: 0, 1
+  index: -1
+ef/tx_hb02
+  rotate: true
+  xy: 215, 195
+  size: 44, 72
+  orig: 50, 100
+  offset: 2, 1
+  index: -1
+ef/tx_hb03
+  rotate: false
+  xy: 196, 64
+  size: 47, 78
+  orig: 50, 100
+  offset: 1, 11
+  index: -1
+ef/tx_hb04
+  rotate: true
+  xy: 215, 144
+  size: 49, 71
+  orig: 50, 100
+  offset: 1, 23
+  index: -1
+ef/tx_hb05
+  rotate: true
+  xy: 107, 5
+  size: 48, 62
+  orig: 50, 100
+  offset: 2, 35
+  index: -1
+ef/tx_hb06
+  rotate: true
+  xy: 171, 5
+  size: 48, 56
+  orig: 50, 100
+  offset: 2, 44
+  index: -1
+ef/tx_hb07
+  rotate: true
+  xy: 245, 94
+  size: 48, 44
+  orig: 50, 100
+  offset: 2, 56
+  index: -1
+ef/tx_hb08
+  rotate: true
+  xy: 229, 2
+  size: 46, 36
+  orig: 50, 100
+  offset: 1, 64
+  index: -1
+ef/tx_xlh
+  rotate: true
+  xy: 2, 35
+  size: 116, 103
+  orig: 150, 131
+  offset: 12, 19
+  index: -1

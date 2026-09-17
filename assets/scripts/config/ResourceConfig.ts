@@ -41,6 +41,8 @@ export const ResourcePath = {
         Role3: 'roles/role/role3',
         DeadEffect: 'roles/role/deadEffect',
         Boom: 'roles/role/boom',
+        Boom2: 'roles/role/boom2',
+        Light: 'roles/role/light',
         Mount: 'baoxiang/baoxiang/mount',
 
         Monster1: 'monsters/monster/monster1',
@@ -209,5 +211,9 @@ export const ResourcePath = {
         Roar: 'music/Roar',
         smallAttack:'music/smallAttack',
         bigAttack:'music/bigAttack',
+        RoleAttack:'music/roleAttack',
+        Skill1:'music/skill1',
+        Skill2:'music/skill2',
+        Skill3:'music/skill3',
     },
 };
