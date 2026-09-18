@@ -5,6 +5,7 @@ import { Monster } from './Monster';
 import { Player } from './Player';
 import { PlayerSkillController } from './PlayerSkillController';
 import { BaseRoleSpecialBattleConfig } from './config/PlayerRoleConfig';
+import { isDamageSkill } from './config/SkillConfig';
 import { AudioManager } from './core/AudioManager';
 
 type ResolveMonsterDefeat = (
@@ -40,7 +41,21 @@ export class BattleController {
     start(monster: Monster): void {
         const player = this.getPlayer();
         const autoSkills = this.getAutoSkills();
-        if (!player || this.battling || autoSkills?.isTargeted(monster) || this.isDefeated(monster)) return;
+        if (!player || this.battling || this.isDefeated(monster)) return;
+
+        // 逐次伤害技能由 AutoSkill + MonsterCombat 持续结算，
+        // 不再进入旧的战力比较后直接生死流程。
+        const damageSkill = this.getSkills()?.getCurrentConfig();
+        if (isDamageSkill(damageSkill)) {
+            this.hideMonsterGlow();
+            this.clearPath();
+            player.stop();
+            player.playIdle();
+            player.faceToWorldX(monster.node.worldPosition.x);
+            monster.faceToWorldX(player.node.worldPosition.x);
+            return;
+        }
+        if (autoSkills?.isTargeted(monster)) return;
 
         this.hideMonsterGlow();
         this.battling = true;

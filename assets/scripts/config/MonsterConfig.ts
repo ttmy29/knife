@@ -1,6 +1,8 @@
 export type MonsterType = 'monster1' | 'monster2' | 'monster3' | 'monster4';
 
 export interface MonsterProfile {
+    /** 追击角色时播放的 Spine 动画。 */
+    moveAnimation: string;
     /** 普通战斗时播放的 Spine 攻击动画。 */
     attackAnimation: string;
     /** 被击杀时播放的 Spine 动画。 */
@@ -26,19 +28,23 @@ export const MonsterViewportCullingConfig = {
 
 export const MonsterProfiles: Record<MonsterType, MonsterProfile> = {
     monster1: {
+        moveAnimation: 'move',
         attackAnimation: 'attack',
         deathAnimation: 'die',
         firstAttackSoundDelay: 0.4,
     },
     monster2: {
+        moveAnimation: 'move',
         attackAnimation: 'attack',
         deathAnimation: 'hitFly',
     },
     monster3: {
+        moveAnimation: 'move',
         attackAnimation: 'attack',
         deathAnimation: 'hitFly',
     },
     monster4: {
+        moveAnimation: 'move',
         attackAnimation: 'attack',
         deathAnimation: 'die',
     },

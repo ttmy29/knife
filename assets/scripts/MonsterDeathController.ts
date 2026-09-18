@@ -48,7 +48,7 @@ export class MonsterDeathController {
         this.getGrid()?.removeMonster(monster);
         player.clearPendingMonster(monster);
 
-        const rewardPower = monster.power;
+        const rewardPower = monster.getRewardPower();
         player.power += rewardPower;
         const isFinalMonster = monster === this.getFinalMonster();
         const resolvedImpactEffect = isFinalMonster && impactEffect === 'boom2'

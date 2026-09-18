@@ -6,6 +6,7 @@ import { AudioManager } from './core/AudioManager';
 
 interface ActiveProjectile {
     node: Node;
+    target: Monster | null;
     targetPosition: Vec3;
     elapsed: number;
     config: SkillConfig;
@@ -112,7 +113,7 @@ export class PlayerSkillController {
     castCurrentSkill(
         player: Player,
         monster: Monster,
-        onImpact: () => void,
+        onImpact: (damage?: number) => void,
         onComplete: () => void,
         isFinalBoss = false,
     ): boolean {
@@ -151,10 +152,11 @@ export class PlayerSkillController {
 
         let impacted = false;
         let finished = false;
+        const castDamage = this.getCastTotalDamage(player, config);
         const impact = () => {
             if (impacted) return;
             impacted = true;
-            onImpact();
+            onImpact(castDamage);
         };
         const finish = () => {
             if (finished) return;
@@ -179,6 +181,7 @@ export class PlayerSkillController {
             this.playEffectAnimation(instance, config);
             this.projectiles.push({
                 node: instance,
+                target: monster,
                 targetPosition,
                 elapsed: 0,
                 config,
@@ -211,6 +214,16 @@ export class PlayerSkillController {
 
             const scaledDt = Math.max(0, dt) * this.playbackTimeScale;
             projectile.elapsed += scaledDt;
+            if (projectile.target?.node?.isValid && projectile.target.node.activeInHierarchy) {
+                projectile.targetPosition.set(projectile.target.node.worldPosition);
+                if (projectile.config.rotateToTarget) {
+                    this.rotateProjectileToTarget(
+                        node,
+                        projectile.targetPosition,
+                        projectile.config.projectileAngleOffset || 0,
+                    );
+                }
+            }
             const current = node.worldPosition;
             const dx = projectile.targetPosition.x - current.x;
             const dy = projectile.targetPosition.y - current.y;
@@ -262,7 +275,7 @@ export class PlayerSkillController {
         player: Player,
         monster: Monster,
         config: SkillConfig,
-        onImpact: () => void,
+        onImpact: (damage?: number) => void,
         onComplete: () => void,
         isFinalBoss: boolean,
     ): boolean {
@@ -330,30 +343,27 @@ export class PlayerSkillController {
         return true;
     }
 
-    /** 一次施法按配置间隔连续发射多个飞行道具，整轮只触发一次命中结算。 */
+    /** 一次施法按配置间隔连续发射多个飞行道具，每个投射物独立命中。 */
     private castProjectileVolley(
         player: Player,
         monster: Monster,
         config: SkillConfig,
-        onImpact: () => void,
+        onImpact: (damage?: number) => void,
         onComplete: () => void,
         isFinalBoss: boolean,
     ): boolean {
         const count = Math.max(1, Math.round(config.projectileCount || 1));
         const interval = Math.max(0, config.projectileInterval || 0);
         const lockedTargetPosition = monster.node.worldPosition.clone();
+        const totalDamage = this.getCastTotalDamage(player, config);
+        const baseDamage = totalDamage === undefined ? undefined : Math.floor(totalDamage / count);
+        const damageRemainder = totalDamage === undefined ? 0 : totalDamage % count;
         let remaining = count;
-        let impacted = false;
         let completed = false;
         this.casting = true;
         if (isFinalBoss) AudioManager.playHeHa();
         AudioManager.playRoleSkill(config.id, !isFinalBoss);
 
-        const impactOnce = () => {
-            if (impacted) return;
-            impacted = true;
-            onImpact();
-        };
         const finishOne = (instance: Node | null) => {
             if (instance) {
                 this.activeInstances.delete(instance);
@@ -383,12 +393,16 @@ export class PlayerSkillController {
                 }
                 this.playEffectAnimation(instance, config);
                 let projectileFinished = false;
+                const projectileDamage = baseDamage === undefined
+                    ? undefined
+                    : baseDamage + (index < damageRemainder ? 1 : 0);
                 this.projectiles.push({
                     node: instance,
+                    target: monster,
                     targetPosition: lockedTargetPosition.clone(),
                     elapsed: 0,
                     config,
-                    impact: impactOnce,
+                    impact: () => onImpact(projectileDamage),
                     finish: () => {
                         if (projectileFinished) return;
                         projectileFinished = true;
@@ -504,7 +518,7 @@ export class PlayerSkillController {
         player: Player,
         monster: Monster,
         config: SkillConfig,
-        onImpact: () => void,
+        onImpact: (damage?: number) => void,
         onComplete: () => void,
         isFinalBoss: boolean,
     ): boolean {
@@ -524,7 +538,8 @@ export class PlayerSkillController {
         blade.state = 'attacking';
         blade.target = monster;
         blade.elapsed = 0;
-        blade.impact = onImpact;
+        const castDamage = this.getCastTotalDamage(player, config);
+        blade.impact = () => onImpact(castDamage);
         blade.finish = onComplete;
         this.animationBaseSpeeds.set(node, Math.max(0, config.animationSpeed));
         this.playEffectAnimation(node, config);
@@ -691,6 +706,14 @@ export class PlayerSkillController {
         }
         this.orbitBlades.length = 0;
         this.nextOrbitBladeIndex = 0;
+    }
+
+    private getCastTotalDamage(player: Player, config: SkillConfig): number | undefined {
+        if (config.damageMode === 'player-power') {
+            return Math.max(0, Math.round(player.getDisplayedPower()));
+        }
+        if (config.damage !== undefined) return Math.max(0, Math.round(config.damage));
+        return undefined;
     }
 
     private createEffectInstance(player: Player, config: SkillConfig): Node | null {

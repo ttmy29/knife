@@ -33,6 +33,11 @@ export interface MonsterSpawnData {
     x: number;
     y: number;
     power: number;
+    damage: number;
+    moveSpeed?: number;
+    attackRange?: number;
+    attackInterval?: number;
+    attackHitDelay?: number;
     battleRadius?: number;
     scaleX?: number;
     scaleY?: number;
@@ -55,16 +60,16 @@ export const Level1: LevelData = {
     },
     playerPower: 4407,
     monsters: [
-        { name: 'monster1', prefab: 'monster1', x: 891, y: 239, power: 4800, battleRadius: 90, scaleX: -1,scaleY:1 },//3300
-        { name: 'monster4', prefab: 'monster4', x: -360, y: 0, power: 184, scaleX: -0.5 },//-107
-        { name: 'monster2', prefab: 'monster3', x: 200, y: -180, power: 664, scaleX: -0.5 },//400
-        { name: 'monster3', prefab: 'monster4', x: -580, y: -190, power: 310, scaleX: 0.5 },//-60 -20
-        { name: 'monster5', prefab: 'monster3', x: -150, y: 85, power: 512, scaleX: -0.5 },
-        { name: 'monster6', prefab: 'monster4', x: 560, y: -320, power: 850, scaleX: -0.5 },
-        { name: 'monster7', prefab: 'monster3', x: -280, y: -180, power: 50, scaleX: 0.5 },
-        { name: 'monster8', prefab: 'monster3', x: -130, y: -260, power: 25, scaleX: -0.5 },
-        { name: 'monster9', prefab: 'monster2', x: 700, y: 20, power: 1809, scaleX: 0.5 },
-        { name: 'monster10', prefab: 'monster4', x: 30, y: -170, power: 360, scaleX: -0.5 },
-       { name: 'monster11', prefab: 'monster2', x: -120, y: -30, power: 1182, scaleX: -0.5 },
+        { name: 'monster1', prefab: 'monster1', x: 900, y: 280, power: 4800, damage: 400, battleRadius: 90, attackRange: 90, scaleX: -1,scaleY:1 },//3300
+        { name: 'monster4', prefab: 'monster4', x: -365, y: -40, power: 184, damage: 25, scaleX: -0.5 },//-107
+        { name: 'monster2', prefab: 'monster3', x: 200, y: -180, power: 664, damage: 60, scaleX: -0.5 },//400
+        { name: 'monster3', prefab: 'monster4', x: -560, y: -170, power: 310, damage: 35, scaleX: 0.5 },//-60 -20
+        { name: 'monster5', prefab: 'monster3', x: -100, y: 90, power: 512, damage: 50, scaleX: -0.5 },
+        { name: 'monster6', prefab: 'monster4', x: 560, y: -320, power: 850, damage: 75, scaleX: -0.5 },
+        { name: 'monster7', prefab: 'monster3', x: -280, y: -180, power: 50, damage: 10, scaleX: 0.5 },
+        { name: 'monster8', prefab: 'monster3', x: -130, y: -260, power: 25, damage: 5, scaleX: -0.5 },
+        { name: 'monster9', prefab: 'monster2', x: 740, y: 20, power: 1809, damage: 120, scaleX: 0.5 },
+        { name: 'monster10', prefab: 'monster4', x: 30, y: -170, power: 360, damage: 40, scaleX: -0.5 },
+       { name: 'monster11', prefab: 'monster2', x: -120, y: -20, power: 1182, damage: 90, scaleX: -0.5 },
     ],
 };

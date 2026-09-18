@@ -66,10 +66,11 @@ export class ChestController {
             child.active = false;
         }
 
+        const position = ChestPositionConfig.box;
+        if (!position) return;
         try {
             const box = await PrefabManager.createBox();
             box.name = 'box';
-            const position = ChestPositionConfig.box;
             box.setPosition(position.x, position.y, position.z);
             boxLayer.addChild(box);
 
@@ -95,11 +96,14 @@ export class ChestController {
         ];
 
         const requestedNames = new Set<EquipmentName>(names);
-        await Promise.all(items.filter(item => requestedNames.has(item.name)).map(async (item) => {
+        await Promise.all(items.filter(item => (
+            requestedNames.has(item.name) && !!ChestPositionConfig.equipment?.[item.name]
+        )).map(async (item) => {
+            const position = ChestPositionConfig.equipment?.[item.name];
+            if (!position) return;
             try {
                 const node = await item.create();
                 node.name = item.name;
-                const position = ChestPositionConfig.equipment[item.name];
                 node.setPosition(position.x, position.y, position.z);
                 boxLayer.addChild(node);
                 this.playEquipmentIdle(node);
@@ -136,11 +140,14 @@ export class ChestController {
             { name: 'needle', create: () => PrefabManager.createNeedle() },
         ];
 
-        await Promise.all(items.map(async (item) => {
+        await Promise.all(items.filter(item => (
+            !!ChestPositionConfig.displayItems?.[item.name]
+        )).map(async (item) => {
+            const position = ChestPositionConfig.displayItems?.[item.name];
+            if (!position) return;
             try {
                 const node = await item.create();
                 node.name = item.name;
-                const position = ChestPositionConfig.displayItems[item.name];
                 node.setPosition(position.x, position.y, position.z);
                 boxLayer.addChild(node);
                 const chest = node.getComponent(Chest) || node.getComponentInChildren(Chest) || node.addComponent(Chest);
@@ -202,9 +209,10 @@ export class ChestController {
         const grid = this.getGrid();
         if (!boxLayer || !grid) return;
 
+        const position = ChestPositionConfig.powerSuit;
+        if (!position) return;
         try {
             const node = await PrefabManager.createPowerSuit();
-            const position = ChestPositionConfig.powerSuit;
             node.setPosition(position.x, position.y, position.z);
             node.setScale(0.3, 0.3, 1);
             boxLayer.addChild(node);
@@ -240,7 +248,7 @@ export class ChestController {
         if (chest.isSkillUnlock()) {
             const skillName = chest.node.name as SkillName;
             this.skillUnlockChests.delete(skillName);
-            if (skillName === 'trop' || skillName === 'needle') {
+            if (skillName === 'fireDao' || skillName === 'needle') {
                 this.hideAlternativeSkill(skillName);
                 this.dismissGuides();
             }
@@ -262,8 +270,8 @@ export class ChestController {
         }
     }
 
-    private hideAlternativeSkill(selected: 'trop' | 'needle'): void {
-        const alternative: SkillName = selected === 'trop' ? 'needle' : 'trop';
+    private hideAlternativeSkill(selected: 'fireDao' | 'needle'): void {
+        const alternative: SkillName = selected === 'fireDao' ? 'needle' : 'fireDao';
         const chest = this.skillUnlockChests.get(alternative);
         if (!chest) return;
         this.getGrid()?.removeChest(chest);

@@ -41,7 +41,7 @@ export const FinalBossBattleConfig: FinalBossBattleProfile = {
     maskFadeInDuration: 0.1,
     maskCameraZoomScale: 0.8,
     maskCameraZoomDuration: 0.3,
-    maskCameraOffsetX: 150,
+    maskCameraOffsetX: 100,
     finisherSlowScale: 0.2,//0.35 慢放倍数
     skillSlowStartDelay: 0.4,
     finisherSlowStartDelay: 0.6,

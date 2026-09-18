@@ -2,7 +2,7 @@ import { FinalBossCinematicController } from './FinalBossCinematicController';
 import { Monster } from './Monster';
 import { Player } from './Player';
 import { PlayerSkillController } from './PlayerSkillController';
-import { SkillConfig } from './config/SkillConfig';
+import { isDamageSkill, SkillConfig } from './config/SkillConfig';
 
 /** 负责已点击目标的技能范围检查、冷却与自动施法。 */
 export class AutoSkillController {
@@ -18,7 +18,8 @@ export class AutoSkillController {
         private readonly getFinalMonster: () => Monster | null,
         private readonly getFinalBossCinematic: () => FinalBossCinematicController | null,
         private readonly onFinalMonsterTargeted: () => void,
-        private readonly onDefeat: (monster: Monster, config: SkillConfig) => void,
+        private readonly onDefeat: (monster: Monster, config: SkillConfig, damage?: number) => void,
+        private readonly onCastComplete: (monster: Monster, config: SkillConfig) => void,
         private readonly onStopForAttack: () => void,
     ) {}
 
@@ -44,7 +45,8 @@ export class AutoSkillController {
         const dx = monsterWorld.x - playerWorld.x;
         const dy = monsterWorld.y - playerWorld.y;
         const distanceSq = dx * dx + dy * dy;
-        if (distanceSq > rangeSq || player.power <= target.power) return;
+        const usesDamage = isDamageSkill(config);
+        if (distanceSq > rangeSq || (!usesDamage && player.power <= target.power)) return;
         this.stopPlayerForAttack(player, target);
         if (this.activeTargets.has(target)) return;
         if (this.getRemainingCooldown(config.attackInterval) > 0 || skills?.isCasting()) return;
@@ -67,14 +69,14 @@ export class AutoSkillController {
         const casted = skills?.castCurrentSkill(
             player,
             skillTarget,
-            () => {
+            (damage) => {
                 bossCinematic?.finishSkillSlowMotion();
-                this.onDefeat(skillTarget, config);
-                this.activeTargets.delete(skillTarget);
+                this.onDefeat(skillTarget, config, damage);
             },
             () => {
                 bossCinematic?.finishSkillSlowMotion();
                 this.activeTargets.delete(skillTarget);
+                this.onCastComplete(skillTarget, config);
             },
             isFinalMonster,
         ) || false;
@@ -96,7 +98,9 @@ export class AutoSkillController {
         this.selectedTarget = monster;
         const player = this.getPlayer();
         const config = this.getSkills()?.getCurrentConfig() || null;
-        if (!player || !player.node.isValid || !config || player.power <= monster.power) return false;
+        if (!player || !player.node.isValid || !config) return false;
+        const usesDamage = isDamageSkill(config);
+        if (!usesDamage && player.power <= monster.power) return false;
 
         const playerWorld = player.node.worldPosition;
         const monsterWorld = monster.node.worldPosition;

@@ -12,6 +12,7 @@ import { Chest } from './Chest';
 import { ChestController } from './ChestController';
 import { FinalBossCinematicController } from './FinalBossCinematicController';
 import { MonsterController } from './MonsterController';
+import { MonsterCombatController } from './MonsterCombatController';
 import { MonsterGlowController } from './MonsterGlowController';
 import { MonsterGuideController } from './MonsterGuideController';
 import { MonsterDeathController } from './MonsterDeathController';
@@ -28,6 +29,7 @@ import { BattleController } from './BattleController';
 import { PrefabManager } from './core/PrefabManager';
 import { AttackAudioType } from './config/ResourceConfig';
 import { GameAssets } from './GameAssets';
+import { isDamageSkill, SkillConfig } from './config/SkillConfig';
 
 const { ccclass, property } = _decorator;
 
@@ -61,6 +63,7 @@ export class GameManager extends Component {
     private autoSkills: AutoSkillController | null = null;
     private playerInput: PlayerInputController | null = null;
     private monsterController: MonsterController | null = null;
+    private monsterCombat: MonsterCombatController | null = null;
     private monsterDeaths: MonsterDeathController | null = null;
     private finalBossCinematic: FinalBossCinematicController | null = null;
     private monsterGlow: MonsterGlowController | null = null;
@@ -92,7 +95,9 @@ export class GameManager extends Component {
             () => this.camera,
             this.monsterGlow,
             () => this.openingSequence?.active || false,
-            () => this.battle?.getActiveMonster() || null,
+            () => this.monsterCombat?.getActiveMonster()
+                || this.battle?.getActiveMonster()
+                || null,
             () => this.finalBossCinematic?.currentFinisherMonster || null,
         );
 
@@ -123,7 +128,8 @@ export class GameManager extends Component {
             () => this.playerSkills,
             () => (this.openingSequence?.active || false)
                 || !this.backgroundAssetsReady
-                || (this.battle?.isBattling() || false),
+                || (this.battle?.isBattling() || false)
+                || (this.monsterCombat?.isCounterAttacking() || false),
             (monster) => this.monsterDeaths?.isDefeated(monster) || false,
             () => this.monsterController?.getFinalMonster() || null,
             () => this.finalBossCinematic,
@@ -131,14 +137,10 @@ export class GameManager extends Component {
                 this.openingSequence?.stopHelpSounds();
                 this.finalBossCinematic?.startBattleCamera();
             },
-            (monster, config) => this.monsterDeaths?.resolve(
-                monster,
-                config.monsterHitAnimation,
-                config.monsterDeathAnimation,
-                config.monsterImpactEffect,
-                config.monsterImpactEffectAnimation,
-                config.playDeadEffect,
-            ),
+            (monster, config, damage) => this.applySkillHit(monster, config, damage),
+            (monster, config) => {
+                if (isDamageSkill(config)) this.monsterCombat?.beginCounterAttack(monster);
+            },
             () => this.pathLine?.clear(),
         );
         this.playerRoles = new PlayerRoleController(
@@ -188,8 +190,17 @@ export class GameManager extends Component {
             () => this.rewards,
             () => this.camera,
             () => this.monsterController?.getFinalMonster() || null,
-            (monster) => this.battle?.clearActiveMonster(monster),
+            (monster) => {
+                this.battle?.clearActiveMonster(monster);
+                this.monsterCombat?.disengage(monster);
+            },
             () => this.showVictoryUI(),
+        );
+        this.monsterCombat = new MonsterCombatController(
+            () => this.grid,
+            () => this.player,
+            (monster) => this.monsterDeaths?.isDefeated(monster) || false,
+            () => this.showDeathUI(),
         );
         this.chests = new ChestController(
             this.node,
@@ -216,12 +227,22 @@ export class GameManager extends Component {
             () => this.camera,
             () => this.uiLayer,
             () => this.openingSequence?.active || false,
-            () => this.battle?.isBattling() || false,
+            () => (this.battle?.isBattling() || false)
+                || (this.monsterCombat?.isInputLocked() || false),
             this.monsterGlow,
             () => this.monsterGuide?.dismiss() || false,
             (monster) => {
-                if (monster) return this.autoSkills?.selectTarget(monster) || false;
+                if (monster) {
+                    const config = this.playerSkills?.getCurrentConfig();
+                    if (isDamageSkill(config)) {
+                        this.monsterCombat?.engage(monster);
+                    } else {
+                        this.monsterCombat?.disengage();
+                    }
+                    return this.autoSkills?.selectTarget(monster) || false;
+                }
                 this.autoSkills?.clearSelectedTarget();
+                this.monsterCombat?.disengage();
                 return false;
             },
         );
@@ -239,6 +260,7 @@ export class GameManager extends Component {
         this.rewards?.destroy();
         this.monsterDeaths?.destroy();
         this.monsterController?.destroy();
+        this.monsterCombat?.destroy();
         this.playerInput?.destroy();
         this.battle?.clear();
         this.autoSkills?.destroy();
@@ -421,6 +443,24 @@ export class GameManager extends Component {
         this.playerInput?.update(dt);
         this.playerSkills?.update(dt);
         this.autoSkills?.update(dt);
+        this.monsterCombat?.update(dt);
+    }
+
+    /** 有 damage 的技能逐次扣血；旧技能继续使用一次性击杀流程。 */
+    private applySkillHit(monster: Monster, config: SkillConfig, impactDamage?: number): void {
+        if (this.monsterDeaths?.isDefeated(monster)) return;
+        if (isDamageSkill(config)) {
+            const damage = impactDamage ?? config.damage ?? 0;
+            if (!monster.takeDamage(damage)) return;
+        }
+        this.monsterDeaths?.resolve(
+            monster,
+            config.monsterHitAnimation,
+            config.monsterDeathAnimation,
+            config.monsterImpactEffect,
+            config.monsterImpactEffectAnimation,
+            config.playDeadEffect,
+        );
     }
 
     private buildUI(): void {

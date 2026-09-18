@@ -1,5 +1,6 @@
 export type SkillName = 'trop' | 'fireDao' | 'wheel' | 'needle';
 export type SkillCastType = 'target-area' | 'projectile' | 'orbit-projectile';
+export type SkillDamageMode = 'fixed' | 'player-power';
 
 export interface SkillConfig {
     id: SkillName;
@@ -14,6 +15,10 @@ export interface SkillConfig {
     attackRange: number;
     /** 自动施法间隔（秒）。 */
     attackInterval: number;
+    /** 每次命中造成的伤害；未配置时保留原一次性击杀逻辑。 */
+    damage?: number;
+    /** player-power：本轮总伤害取施法开始时的角色当前数字。 */
+    damageMode?: SkillDamageMode;
     /** 是否按角色当前左右朝向翻转技能。 */
     flipWithPlayerFacing?: boolean;
     /** 仅地刺使用：技能出现后多久命中。 */
@@ -111,6 +116,7 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         randomWeight: 1,
         attackRange: 280,
         attackInterval: 1,
+        damageMode: 'player-power',
         rotateToTarget: true,
         projectileAngleOffset: 0,
         monsterImpactEffect: 'boom',
@@ -131,8 +137,9 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         animationSpeed: 1,
         animationLoop: true,
         randomWeight: 1,
-        attackRange: 480,
+        attackRange: 280,
         attackInterval: 1,
+        damageMode: 'player-power',
         rotateToTarget: true,
         projectileAngleOffset: 0,
         keepTemplateVisible: true,
@@ -173,4 +180,9 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
 
 export function isSkillName(value: string): value is SkillName {
     return Object.prototype.hasOwnProperty.call(SkillConfigs, value);
+}
+
+export function isDamageSkill(config: SkillConfig | null | undefined): boolean {
+    return !!config && (config.damageMode === 'player-power'
+        || (config.damage !== undefined && config.damage > 0));
 }

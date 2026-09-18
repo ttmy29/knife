@@ -13,6 +13,12 @@ export class Monster extends Component {
     @property
     public power = 0;
 
+    public damage = 10;
+    public moveSpeed = 120;
+    public attackRange = 60;
+    public attackInterval = 1;
+    public attackHitDelay = 0.35;
+
     /** 战斗触发范围 = 怪物视觉大小 x 该系数（1=整个盒子，0.6=更贴近身体） */
     @property
     public footprintScale = 1.2;
@@ -53,7 +59,9 @@ export class Monster extends Component {
     /** 留空以确保 init 时真正向 Spine 设置一次 idle，而不是误判为已在播放。 */
     private animName = '';
     private attackAnimation = 'phyattack';
+    private moveAnimation = 'move';
     private deathAnimation = 'die';
+    private rewardPower = 0;
     private registeredOnGrid = false;
     private presentationActive = true;
     private viewportVisible = true;
@@ -104,6 +112,7 @@ export class Monster extends Component {
             || null;
         if (effectNode) effectNode.active = false;
         this.animName = '';
+        this.rewardPower = Math.max(0, this.power);
         this.playIdle();
         if (registerOnGrid) this.activateOnGrid();
     }
@@ -348,6 +357,10 @@ export class Monster extends Component {
         this.attackAnimation = name || 'phyattack';
     }
 
+    setMoveAnimation(name: string): void {
+        this.moveAnimation = name || 'move';
+    }
+
     setDeathAnimation(name: string): void {
         this.deathAnimation = name || 'die';
     }
@@ -400,6 +413,49 @@ export class Monster extends Component {
         if (this.powerLabel) this.powerLabel.string = text;
     }
 
+    /** 扣除当前血量，返回 true 表示血量已归零。 */
+    takeDamage(amount: number): boolean {
+        if (this.power <= 0) return true;
+        this.power = Math.max(0, this.power - Math.max(0, Math.round(amount)));
+        this.setLabelText(String(this.power));
+        return this.power <= 0;
+    }
+
+    getRewardPower(): number {
+        return this.rewardPower;
+    }
+
+    playMove(): void {
+        this.playAnim(this.moveAnimation, true);
+    }
+
+    /** 追击移动时同步根节点、网格占格与已拆分的头顶展示。 */
+    setCombatPosition(position: Readonly<Vec3>): void {
+        const oldWorld = this.node.worldPosition.clone();
+        if (this.grid && this.registeredOnGrid) this.grid.removeMonster(this);
+        this.node.setPosition(position.x, position.y, position.z);
+        const cell = this.grid?.worldToGrid(this.node.position);
+        if (cell) {
+            this.gridCol = cell.x;
+            this.gridRow = cell.y;
+        }
+        this.computeCells();
+        if (this.grid && this.registeredOnGrid) this.grid.addMonster(this);
+
+        const newWorld = this.node.worldPosition;
+        const dx = newWorld.x - oldWorld.x;
+        const dy = newWorld.y - oldWorld.y;
+        const dz = newWorld.z - oldWorld.z;
+        if (this.externalColorNode?.isValid) {
+            const current = this.externalColorNode.worldPosition;
+            this.externalColorNode.setWorldPosition(current.x + dx, current.y + dy, current.z + dz);
+        }
+        if (this.externalLabelNode?.isValid) {
+            const current = this.externalLabelNode.worldPosition;
+            this.externalLabelNode.setWorldPosition(current.x + dx, current.y + dy, current.z + dz);
+        }
+    }
+
     getSpineNode(): Node | null {
         return this.spineNode && this.spineNode.isValid ? this.spineNode : null;
     }
@@ -416,10 +472,20 @@ export class Monster extends Component {
     }
 
     /** 开场演出使用：攻击一次，命中事件触发反馈，结束后恢复待机。 */
-    playAttackThenIdle(onComplete?: () => void, onHit?: () => void): void {
+    playAttackThenIdle(onComplete?: () => void, onHit?: () => void, fallbackHitDelay?: number): void {
         this.setAnimationTimeScale(1);
-        this.listenForAttackHit(onHit);
+        let hitTriggered = false;
+        const triggerHit = () => {
+            if (hitTriggered) return;
+            hitTriggered = true;
+            if (onHit) onHit();
+        };
+        this.listenForAttackHit(triggerHit);
+        if (onHit && fallbackHitDelay !== undefined) {
+            this.scheduleOnce(triggerHit, Math.max(0, fallbackHitDelay));
+        }
         this.playOnceThenIdle(this.attackAnimation, () => {
+            this.unschedule(triggerHit);
             this.clearAttackHitListeners();
             if (onComplete) onComplete();
         });

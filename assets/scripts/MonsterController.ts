@@ -99,6 +99,12 @@ export class MonsterController {
             container.addChild(child);
 
             if (data.battleRadius !== undefined) monster.battleRadius = data.battleRadius;
+            monster.damage = Math.max(0, data.damage);
+            monster.moveSpeed = Math.max(0, data.moveSpeed ?? 120);
+            monster.attackRange = Math.max(0, data.attackRange ?? monster.battleRadius);
+            monster.attackInterval = Math.max(0.01, data.attackInterval ?? 1);
+            monster.attackHitDelay = Math.max(0, data.attackHitDelay ?? 0.35);
+            monster.setMoveAnimation(MonsterProfiles[data.prefab].moveAnimation);
             monster.setAttackAnimation(MonsterProfiles[data.prefab].attackAnimation);
             monster.setDeathAnimation(MonsterProfiles[data.prefab].deathAnimation);
             monster.init(grid, false);
