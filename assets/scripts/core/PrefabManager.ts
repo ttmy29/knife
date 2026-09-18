@@ -25,6 +25,7 @@ type PrefabKey =
     | 'fireDao'
     | 'trop'
     | 'wheel'
+    | 'needle'
     | MonsterPrefabType;
 
 export type EquipmentPrefabType = 'dachui' | 'kuijia' | 'toukui' | 'mount';
@@ -50,6 +51,7 @@ const PREFAB_LOAD_CONFIG: Record<PrefabKey, { bundle: string; path: string }> = 
     fireDao: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.FireDao },
     trop: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Trop },
     wheel: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Wheel },
+    needle: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Needle },
     monster1: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster1 },
     monster2: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster2 },
     monster3: { bundle: ResourcePath.Bundle.Monsters, path: ResourcePath.Prefab.Monster3 },
@@ -209,6 +211,10 @@ export class PrefabManager {
 
     static async createWheel(): Promise<Node> {
         return instantiate(await this.loadPrefab('wheel'));
+    }
+
+    static async createNeedle(): Promise<Node> {
+        return instantiate(await this.loadPrefab('needle'));
     }
 
     static async createMonster(type: MonsterPrefabType): Promise<Node> {

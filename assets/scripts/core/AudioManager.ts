@@ -76,6 +76,7 @@ export class AudioManager {
             trop: 'skill1',
             fireDao: 'skill2',
             wheel: 'skill3',
+            needle: 'skill2',
         };
         void this.playRoleSkillSequence(skillAudio[skill], includeRoleAttack);
     }

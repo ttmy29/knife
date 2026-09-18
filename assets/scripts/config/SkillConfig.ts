@@ -1,5 +1,5 @@
-export type SkillName = 'trop' | 'fireDao' | 'wheel';
-export type SkillCastType = 'target-area' | 'projectile';
+export type SkillName = 'trop' | 'fireDao' | 'wheel' | 'needle';
+export type SkillCastType = 'target-area' | 'projectile' | 'orbit-projectile';
 
 export interface SkillConfig {
     id: SkillName;
@@ -26,6 +26,10 @@ export interface SkillConfig {
     segmentDistance?: number;
     /** 仅飞行道具使用。 */
     projectileSpeed?: number;
+    /** 一次施法连续发射的飞行道具数量，可用于 1/2/3 级数量升级。 */
+    projectileCount?: number;
+    /** 连续飞行道具之间的发射间隔（秒）。 */
+    projectileInterval?: number;
     /** 仅飞行道具使用。 */
     hitRadius?: number;
     /** 仅飞行道具使用。 */
@@ -34,6 +38,22 @@ export interface SkillConfig {
     rotateToTarget?: boolean;
     /** 飞行道具资源初始朝向相对“朝右”的角度修正。 */
     projectileAngleOffset?: number;
+    /** 解锁后是否持续显示角色 Effects 下的技能模板。 */
+    keepTemplateVisible?: boolean;
+    /** 初始环绕飞剑数量。 */
+    orbitBladeCount?: number;
+    /** 持续显示模板围绕角色旋转的角速度（度/秒）。 */
+    orbitAngularSpeed?: number;
+    /** 持续显示模板的中心绕角色旋转的半径。 */
+    orbitRadius?: number;
+    /** 环绕飞行时朝向实际运动方向的平滑速度；越大转向越快。 */
+    orbitTurnSmoothing?: number;
+    /** 环绕飞剑命中后返回轨道的速度。 */
+    orbitReturnSpeed?: number;
+    /** 飞剑与当前轨道点小于此距离时重新接轨。 */
+    orbitRejoinRadius?: number;
+    /** 返回阶段的超时时间，超时后强制接轨。 */
+    orbitReturnTimeout?: number;
     /** 技能命中后、死亡前播放的怪物受击动画。 */
     monsterHitAnimation?: string;
     /** 技能最终触发的怪物死亡动画。 */
@@ -96,6 +116,36 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         monsterImpactEffect: 'boom',
         monsterImpactEffectAnimation: 'molotovAttackhits',
         projectileSpeed: 400,
+        projectileCount: 3,
+        projectileInterval: 0.2,
+        hitRadius: 40,
+        maxTravelTime: 3,
+        playDeadEffect: false,
+        forceHideTimeout: 3,
+    },
+    needle: {
+        id: 'needle',
+        effectNodeName: 'needle',
+        castType: 'orbit-projectile',
+        animationName: 'action1',
+        animationSpeed: 1,
+        animationLoop: true,
+        randomWeight: 1,
+        attackRange: 480,
+        attackInterval: 1,
+        rotateToTarget: true,
+        projectileAngleOffset: 0,
+        keepTemplateVisible: true,
+        orbitBladeCount: 3,
+        orbitAngularSpeed: 180,
+        orbitRadius: 128,
+        orbitTurnSmoothing: 18,
+        orbitReturnSpeed: 520,
+        orbitRejoinRadius: 24,
+        orbitReturnTimeout: 3,
+        monsterImpactEffect: 'boom',
+        monsterImpactEffectAnimation: 'molotovAttackhits',
+        projectileSpeed: 600,
         hitRadius: 40,
         maxTravelTime: 3,
         playDeadEffect: false,

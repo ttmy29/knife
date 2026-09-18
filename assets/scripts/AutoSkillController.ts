@@ -1,4 +1,3 @@
-import { Grid } from './Grid';
 import { FinalBossCinematicController } from './FinalBossCinematicController';
 import { Monster } from './Monster';
 import { Player } from './Player';
@@ -12,7 +11,6 @@ export class AutoSkillController {
     private selectedTarget: Monster | null = null;
 
     constructor(
-        private readonly getGrid: () => Grid | null,
         private readonly getPlayer: () => Player | null,
         private readonly getSkills: () => PlayerSkillController | null,
         private readonly isBlocked: () => boolean,
@@ -34,17 +32,6 @@ export class AutoSkillController {
         const playerWorld = player.node.worldPosition;
         const range = Math.max(0, config.attackRange);
         const rangeSq = range * range;
-        let chestBlocksSkill = false;
-        for (const chest of this.getGrid()?.getChests() || []) {
-            if (!chest.node || !chest.node.isValid || !chest.node.activeInHierarchy) continue;
-            const chestWorld = chest.node.worldPosition;
-            const dx = chestWorld.x - playerWorld.x;
-            const dy = chestWorld.y - playerWorld.y;
-            if (dx * dx + dy * dy <= rangeSq) {
-                chestBlocksSkill = true;
-                break;
-            }
-        }
 
         const target = this.selectedTarget;
         if (!target?.node?.isValid
@@ -59,7 +46,7 @@ export class AutoSkillController {
         const distanceSq = dx * dx + dy * dy;
         if (distanceSq > rangeSq || player.power <= target.power) return;
         this.stopPlayerForAttack(player, target);
-        if (this.activeTargets.has(target) || chestBlocksSkill) return;
+        if (this.activeTargets.has(target)) return;
         if (this.getRemainingCooldown(config.attackInterval) > 0 || skills?.isCasting()) return;
         const targetIsFinalMonster = target === this.getFinalMonster();
         const targetBossCinematic = targetIsFinalMonster ? this.getFinalBossCinematic() : null;

@@ -24,6 +24,7 @@ export type GamePrefabKey =
     | 'fireDao'
     | 'trop'
     | 'wheel'
+    | 'needle'
     | MonsterPrefabType;
 
 export type GameAudioKey =
@@ -83,6 +84,7 @@ export class GameAssets {
     @property(Prefab) fireDao: Prefab | null = null;
     @property(Prefab) trop: Prefab | null = null;
     @property(Prefab) wheel: Prefab | null = null;
+    @property(Prefab) needle: Prefab | null = null;
 
     @property(Prefab) fail: Prefab | null = null;
     @property(Prefab) victory: Prefab | null = null;

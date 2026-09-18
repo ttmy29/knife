@@ -1,0 +1,97 @@
+
+拖尾.png
+size: 717,166
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+1
+  rotate: true
+  xy: 316, 55
+  size: 109, 312
+  orig: 121, 322
+  offset: 6, 10
+  index: -1
+2
+  rotate: true
+  xy: 2, 53
+  size: 111, 312
+  orig: 121, 322
+  offset: 5, 10
+  index: -1
+A_heibai_uv_00000
+  rotate: false
+  xy: 244, 2
+  size: 76, 49
+  orig: 85, 55
+  offset: 5, 3
+  index: -1
+A_heibai_uv_00001
+  rotate: false
+  xy: 83, 2
+  size: 78, 49
+  orig: 85, 55
+  offset: 4, 2
+  index: -1
+A_heibai_uv_00002
+  rotate: false
+  xy: 480, 5
+  size: 77, 48
+  orig: 85, 55
+  offset: 5, 2
+  index: -1
+A_heibai_uv_00003
+  rotate: false
+  xy: 2, 2
+  size: 79, 49
+  orig: 85, 55
+  offset: 4, 2
+  index: -1
+A_heibai_uv_00004
+  rotate: false
+  xy: 630, 65
+  size: 79, 48
+  orig: 85, 55
+  offset: 3, 3
+  index: -1
+A_heibai_uv_00005
+  rotate: false
+  xy: 630, 115
+  size: 79, 49
+  orig: 85, 55
+  offset: 2, 3
+  index: -1
+A_heibai_uv_00006
+  rotate: false
+  xy: 322, 4
+  size: 77, 49
+  orig: 85, 55
+  offset: 4, 3
+  index: -1
+A_heibai_uv_00007
+  rotate: false
+  xy: 637, 16
+  size: 78, 47
+  orig: 85, 55
+  offset: 3, 3
+  index: -1
+A_heibai_uv_00008
+  rotate: false
+  xy: 163, 3
+  size: 79, 48
+  orig: 85, 55
+  offset: 2, 3
+  index: -1
+A_heibai_uv_00009
+  rotate: false
+  xy: 559, 3
+  size: 76, 50
+  orig: 85, 55
+  offset: 4, 2
+  index: -1
+A_heibai_uv_00010
+  rotate: false
+  xy: 401, 4
+  size: 77, 49
+  orig: 85, 55
+  offset: 4, 3
+  index: -1

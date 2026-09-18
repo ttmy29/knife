@@ -84,6 +84,9 @@ export class Player extends Component {
     /** 经验球缩放脉冲乘数（不影响朝向） */
     private pulseScale = 1;
     private spineNode: Node | null = null;
+    private spineBaseScaleX = 1;
+    private spineBaseScaleY = 1;
+    private spineBaseScaleZ = 1;
     private dodgeFollowNodes: DodgeFollowNode[] = [];
     /** 失败后禁止再移动 / 寻路 */
     public dead = false;
@@ -95,7 +98,7 @@ export class Player extends Component {
     }
 
     getFacing(): number {
-        return this.node.scale.x < 0 ? -1 : 1;
+        return this.facing;
     }
 
     faceToWorldX(worldX: number): void {
@@ -126,6 +129,11 @@ export class Player extends Component {
         this.facing = this.node.scale.x < 0 ? -1 : 1;
         // 角色组合骨骼只从 spine 收集；Effects 有独立动画，不能跟着播放 idle/run。
         this.spineNode = this.node.getChildByName('spine');
+        if (this.spineNode) {
+            this.spineBaseScaleX = this.spineNode.scale.x;
+            this.spineBaseScaleY = this.spineNode.scale.y;
+            this.spineBaseScaleZ = this.spineNode.scale.z;
+        }
         this.setupDodgeFollowNodes();
         this.skeletons = this.collectPlayerSkeletons();
         this.setupAttackEffects();
@@ -752,15 +760,24 @@ export class Player extends Component {
     }
 
     private applyFacing(): void {
+        // 根节点保持正向，避免朝向翻转时带动 Effects/needle 镜像并跳到另一侧。
         this.node.setScale(
-            this.baseScaleX * this.facing * this.pulseScale,
+            this.baseScaleX * this.pulseScale,
             this.baseScaleY * this.pulseScale,
             this.baseScaleZ,
         );
-        // 头顶 Label 反向补偿缩放：角色镜像时文字保持正向、大小不变
+        // 只有角色美术层跟随朝向翻转；挂在根节点下的特效、数字保持原位。
+        if (this.spineNode?.isValid) {
+            this.spineNode.setScale(
+                this.spineBaseScaleX * this.facing,
+                this.spineBaseScaleY,
+                this.spineBaseScaleZ,
+            );
+        }
+        // 抵消根节点的角色基础缩放，头顶数字保持编辑器中的显示大小。
         if (this.powerLabel) {
             this.powerLabel.node.setScale(
-                1 / (this.baseScaleX * this.facing),
+                1 / this.baseScaleX,
                 1 / this.baseScaleY,
                 1 / this.baseScaleZ,
             );

@@ -23,6 +23,7 @@ interface DisplayItemSpawnConfig {
 
 export class ChestController {
     private powerSuitChest: Chest | null = null;
+    private readonly skillUnlockChests = new Map<SkillName, Chest>();
     private colorLayer: Node | null = null;
     private labelLayer: Node | null = null;
 
@@ -35,6 +36,7 @@ export class ChestController {
         private readonly switchPlayerRole: (roleType: RewardRoleType) => void,
         private readonly applyPlayerRoleProfile: (player: Player, roleType: PlayerRoleType, playIntro?: boolean) => void,
         private readonly requestGuideStartForNode: (node: Node, openingActive: boolean) => void,
+        private readonly dismissGuides: () => void,
         private readonly isOpeningSequenceActive: () => boolean,
         private readonly unlockSkill: (name: SkillName) => void,
     ) {}
@@ -101,7 +103,7 @@ export class ChestController {
                 node.setPosition(position.x, position.y, position.z);
                 boxLayer.addChild(node);
                 this.playEquipmentIdle(node);
-                if (item.name === MonsterGuideConfig.targetNodeName) {
+                if (MonsterGuideConfig.targetNodeNames.includes(item.name)) {
                     this.requestGuideStartForNode(node, this.isOpeningSequenceActive());
                 }
 
@@ -131,6 +133,7 @@ export class ChestController {
             { name: 'fireDao', create: () => PrefabManager.createFireDao() },
             { name: 'trop', create: () => PrefabManager.createTrop() },
             { name: 'wheel', create: () => PrefabManager.createWheel() },
+            { name: 'needle', create: () => PrefabManager.createNeedle() },
         ];
 
         await Promise.all(items.map(async (item) => {
@@ -142,8 +145,9 @@ export class ChestController {
                 boxLayer.addChild(node);
                 const chest = node.getComponent(Chest) || node.getComponentInChildren(Chest) || node.addComponent(Chest);
                 chest.init(grid);
+                this.skillUnlockChests.set(item.name, chest);
                 this.movePresentationToLayers(chest);
-                if (item.name === MonsterGuideConfig.targetNodeName) {
+                if (MonsterGuideConfig.targetNodeNames.includes(item.name)) {
                     this.requestGuideStartForNode(node, this.isOpeningSequenceActive());
                 }
             } catch (err) {
@@ -234,7 +238,13 @@ export class ChestController {
 
         AudioManager.playLevelUp();
         if (chest.isSkillUnlock()) {
-            this.unlockSkill(chest.node.name as SkillName);
+            const skillName = chest.node.name as SkillName;
+            this.skillUnlockChests.delete(skillName);
+            if (skillName === 'trop' || skillName === 'needle') {
+                this.hideAlternativeSkill(skillName);
+                this.dismissGuides();
+            }
+            this.unlockSkill(skillName);
             player.playUpgradeEffect(PlayerRoleProfiles.role.upgradeEffectAnimation);
             AudioManager.playCheer();
             return;
@@ -250,6 +260,16 @@ export class ChestController {
         } else {
             this.switchPlayerRole('role3');
         }
+    }
+
+    private hideAlternativeSkill(selected: 'trop' | 'needle'): void {
+        const alternative: SkillName = selected === 'trop' ? 'needle' : 'trop';
+        const chest = this.skillUnlockChests.get(alternative);
+        if (!chest) return;
+        this.getGrid()?.removeChest(chest);
+        chest.setPresentationActive(false);
+        if (chest.node?.isValid) chest.node.active = false;
+        this.skillUnlockChests.delete(alternative);
     }
 
     private applyEquipmentToPlayer(player: Player, equipment: EquipmentName): void {

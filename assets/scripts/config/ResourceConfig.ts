@@ -34,6 +34,7 @@ export const ResourcePath = {
         FireDao: 'baoxiang/baoxiang/fireDao',
         Trop: 'baoxiang/baoxiang/trop',
         Wheel: 'baoxiang/baoxiang/wheel',
+        Needle: 'baoxiang/baoxiang/needle',
 
         Role: 'roles/role/role4',
         Role1: 'roles/role/role1',

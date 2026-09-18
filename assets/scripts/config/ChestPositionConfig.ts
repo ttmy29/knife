@@ -27,9 +27,10 @@ export const ChestPositionConfig: ChestPositionConfigShape = {
         mount: { x: 35, y: 385, z: 0 },
     },
     displayItems: {
-        fireDao: { x: -500, y: -30, z: 0 },
-        trop: { x: -350, y: -440, z: 0 },
+        trop: { x: -500, y: -30, z: 0 },
+        fireDao: { x: -350, y: -440, z: 0 },
         wheel: { x: -260, y: 70, z: 0 },
+        needle: { x: -560, y: -360, z: 0 },
     },
     powerSuit: { x: 685, y: -70, z: 0 },
 };

@@ -119,7 +119,6 @@ export class GameManager extends Component {
         if (!skillLayer) console.warn('[GameManager] GameWorld/TempLayer is missing');
         this.playerSkills = new PlayerSkillController(this, skillLayer || this.node);
         this.autoSkills = new AutoSkillController(
-            () => this.grid,
             () => this.player,
             () => this.playerSkills,
             () => (this.openingSequence?.active || false)
@@ -201,6 +200,7 @@ export class GameManager extends Component {
             (roleType) => this.playerRoles?.switchPlayerRole(this.player, roleType),
             (player, roleType, playIntro) => this.playerRoles?.applyPlayerRoleProfile(player, roleType, playIntro),
             (node, openingActive) => this.monsterGuide?.requestStartForNode(node, openingActive),
+            () => { this.monsterGuide?.dismiss(); },
             () => (this.openingSequence?.active || false) || !this.backgroundAssetsReady,
             (name) => this.playerSkills?.unlock(name),
         );
