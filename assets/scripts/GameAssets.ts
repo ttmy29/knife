@@ -14,6 +14,7 @@ export type GamePrefabKey =
     | 'light'
     | 'fail'
     | 'victory'
+    | 'hp'
     | 'box'
     | 'powerSuit'
     | 'dao'
@@ -88,6 +89,7 @@ export class GameAssets {
 
     @property(Prefab) fail: Prefab | null = null;
     @property(Prefab) victory: Prefab | null = null;
+    @property(Prefab) hp: Prefab | null = null;
 
     @property(AudioClip) bgm: AudioClip | null = null;
     @property(AudioClip) attack1: AudioClip | null = null;

@@ -25,6 +25,7 @@ export class MonsterDeathController {
         private readonly getCamera: () => Camera | null,
         private readonly getFinalMonster: () => Monster | null,
         private readonly clearActiveBattleMonster: (monster: Monster) => void,
+        private readonly onMonsterDefeated: (monster: Monster) => void,
         private readonly showVictoryUI: () => void,
     ) {}
 
@@ -85,7 +86,7 @@ export class MonsterDeathController {
                 if (playDeadEffect) this.playDeadEffect(monster);
                 monster.playHitReaction(usableHitAnimation, hideMonster);
                 this.host.scheduleOnce(hideMonster, SkillSystemConfig.monsterForceHideTimeout);
-                this.dropExperience(monster, rewardPower);
+                this.dropExperience(monster, rewardPower, () => this.onMonsterDefeated(monster));
                 return true;
             }
 
@@ -105,16 +106,20 @@ export class MonsterDeathController {
                 this.host.scheduleOnce(startDeath, SkillSystemConfig.monsterForceHideTimeout);
             } else startDeath();
         } else hideMonster();
-        this.dropExperience(monster, rewardPower);
+        this.dropExperience(monster, rewardPower, () => this.onMonsterDefeated(monster));
         return true;
     }
 
-    private dropExperience(monster: Monster, rewardPower: number): void {
+    private dropExperience(monster: Monster, rewardPower: number, onAbsorbed: () => void): void {
         const rewards = this.getRewards();
-        rewards?.startExpOrbDrop(
-            monster,
-            () => rewards.enqueuePlayerPowerGain(rewardPower),
-        );
+        if (!rewards) {
+            onAbsorbed();
+            return;
+        }
+        rewards.startExpOrbDrop(monster, () => {
+            rewards.enqueuePlayerPowerGain(rewardPower);
+            onAbsorbed();
+        });
     }
 
     /** 怪物开始 die 时，在 TempLayer 播放一次帧动画死亡特效。 */

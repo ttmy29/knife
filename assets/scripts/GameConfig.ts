@@ -60,7 +60,7 @@ export const Level1: LevelData = {
     },
     playerPower: 4407,
     monsters: [
-        { name: 'monster1', prefab: 'monster1', x: 900, y: 280, power: 4800, damage: 400, battleRadius: 90, attackRange: 90, scaleX: -1,scaleY:1 },//3300
+        { name: 'monster1', prefab: 'monster1', x: 900, y: 280, power: 7188, damage: 400, battleRadius: 90, attackRange: 90, scaleX: -1,scaleY:1 },//3300
         { name: 'monster4', prefab: 'monster4', x: -365, y: -40, power: 184, damage: 25, scaleX: -0.5 },//-107
         { name: 'monster2', prefab: 'monster3', x: 200, y: -180, power: 664, damage: 60, scaleX: -0.5 },//400
         { name: 'monster3', prefab: 'monster4', x: -560, y: -170, power: 310, damage: 35, scaleX: 0.5 },//-60 -20

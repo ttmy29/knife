@@ -1,7 +1,8 @@
 import {
     _decorator, Component, Node, Graphics,
-    Color, Vec3, Camera,
+    Animation, Color, Vec3, Camera, director, sp, Tween,
 } from 'cc';
+import type { ISchedulable } from 'cc';
 import { Grid } from './Grid';
 import { Monster } from './Monster';
 import { Player } from './Player';
@@ -20,16 +21,19 @@ import { OpeningSequenceController } from './OpeningSequenceController';
 import { PlayerInputController } from './PlayerInputController';
 import { PlayerRoleController } from './PlayerRoleController';
 import { PlayerSkillController } from './PlayerSkillController';
+import { SkillPanelController } from './SkillPanelController';
 import { RewardController } from './RewardController';
 import { ResultPanelController } from './ResultPanelController';
 import { Level1 } from './GameConfig';
 import { AudioManager } from './core/AudioManager';
 import { AutoSkillController } from './AutoSkillController';
 import { BattleController } from './BattleController';
+import { DamageNumberController } from './DamageNumberController';
 import { PrefabManager } from './core/PrefabManager';
 import { AttackAudioType } from './config/ResourceConfig';
 import { GameAssets } from './GameAssets';
 import { isDamageSkill, SkillConfig } from './config/SkillConfig';
+import { KillUpgradeConfigs } from './config/KillUpgradeConfig';
 
 const { ccclass, property } = _decorator;
 
@@ -60,6 +64,8 @@ export class GameManager extends Component {
     private chests: ChestController | null = null;
     private playerRoles: PlayerRoleController | null = null;
     private playerSkills: PlayerSkillController | null = null;
+    private skillPanel: SkillPanelController | null = null;
+    private damageNumbers: DamageNumberController | null = null;
     private autoSkills: AutoSkillController | null = null;
     private playerInput: PlayerInputController | null = null;
     private monsterController: MonsterController | null = null;
@@ -71,6 +77,13 @@ export class GameManager extends Component {
     private openingSequence: OpeningSequenceController | null = null;
     private backgroundAssetsReady = false;
     private openingFinished = false;
+    private defeatedMonsterCount = 0;
+    private nextKillUpgradeIndex = 0;
+    private gameplayPaused = false;
+    private readonly pausedSkeletonScales = new Map<sp.Skeleton, number>();
+    private readonly pausedAnimations = new Set<Animation>();
+    private readonly pausedComponents: Component[] = [];
+    private readonly pausedTweenNodes: Node[] = [];
 
     onLoad(): void {
         PrefabManager.init(this.gameAssets);
@@ -122,6 +135,7 @@ export class GameManager extends Component {
         this.buildGround();
         const skillLayer = this.node.getChildByName('TempLayer');
         if (!skillLayer) console.warn('[GameManager] GameWorld/TempLayer is missing');
+        this.damageNumbers = new DamageNumberController(skillLayer || this.node);
         this.playerSkills = new PlayerSkillController(this, skillLayer || this.node);
         this.autoSkills = new AutoSkillController(
             () => this.player,
@@ -129,6 +143,7 @@ export class GameManager extends Component {
             () => (this.openingSequence?.active || false)
                 || !this.backgroundAssetsReady
                 || (this.battle?.isBattling() || false)
+                || (this.skillPanel?.isVisible() || false)
                 || (this.monsterCombat?.isCounterAttacking() || false),
             (monster) => this.monsterDeaths?.isDefeated(monster) || false,
             () => this.monsterController?.getFinalMonster() || null,
@@ -194,6 +209,7 @@ export class GameManager extends Component {
                 this.battle?.clearActiveMonster(monster);
                 this.monsterCombat?.disengage(monster);
             },
+            () => this.recordMonsterDefeat(),
             () => this.showVictoryUI(),
         );
         this.monsterCombat = new MonsterCombatController(
@@ -214,6 +230,7 @@ export class GameManager extends Component {
             () => { this.monsterGuide?.dismiss(); },
             () => (this.openingSequence?.active || false) || !this.backgroundAssetsReady,
             (name) => this.playerSkills?.unlock(name),
+            () => { void this.skillPanel?.show(); },
         );
         this.buildPathLine();
         this.monsterController.setupRenderLayers();
@@ -228,6 +245,7 @@ export class GameManager extends Component {
             () => this.uiLayer,
             () => this.openingSequence?.active || false,
             () => (this.battle?.isBattling() || false)
+                || (this.skillPanel?.isVisible() || false)
                 || (this.monsterCombat?.isInputLocked() || false),
             this.monsterGlow,
             () => this.monsterGuide?.dismiss() || false,
@@ -253,6 +271,7 @@ export class GameManager extends Component {
 
 
     onDestroy(): void {
+        this.setGameplayPaused(false);
         this.finalBossCinematic?.restoreAll();
         this.openingSequence?.destroy();
         this.monsterGuide?.destroy();
@@ -265,6 +284,8 @@ export class GameManager extends Component {
         this.battle?.clear();
         this.autoSkills?.destroy();
         this.playerSkills?.destroy();
+        this.skillPanel?.destroy();
+        this.damageNumbers?.destroy();
     }
 
     // ---------------- 场景搭建 ----------------
@@ -343,6 +364,7 @@ export class GameManager extends Component {
             PrefabManager.loadBoom(),
             PrefabManager.loadBoom2(),
             PrefabManager.loadLight(),
+            PrefabManager.loadHp(),
         ];
 
         await Promise.all(tasks.map(async task => {
@@ -379,6 +401,7 @@ export class GameManager extends Component {
             this.monsterController
                 ? this.monsterController.spawnMonsters(['monster1', 'monster2'])
                 : Promise.resolve(),
+            this.chests ? this.chests.spawnInitialChest() : Promise.resolve(),
             this.chests ? this.chests.spawnDisplayItems() : Promise.resolve(),
         ]).catch(err => {
             console.error('[GameManager] direct opening scene load failed', err);
@@ -440,18 +463,23 @@ export class GameManager extends Component {
     }
 
     update(dt: number): void {
+        if (this.gameplayPaused) return;
         this.playerInput?.update(dt);
         this.playerSkills?.update(dt);
         this.autoSkills?.update(dt);
-        this.monsterCombat?.update(dt);
+        if (!this.skillPanel?.isVisible()) this.monsterCombat?.update(dt);
     }
 
     /** 有 damage 的技能逐次扣血；旧技能继续使用一次性击杀流程。 */
     private applySkillHit(monster: Monster, config: SkillConfig, impactDamage?: number): void {
-        if (this.monsterDeaths?.isDefeated(monster)) return;
         if (isDamageSkill(config)) {
             const damage = impactDamage ?? config.damage ?? 0;
+            this.damageNumbers?.show(monster, damage);
+            // 已经发射的后续投射物仍显示伤害数字，但不能重复扣血或触发死亡奖励。
+            if (this.monsterDeaths?.isDefeated(monster)) return;
             if (!monster.takeDamage(damage)) return;
+        } else if (this.monsterDeaths?.isDefeated(monster)) {
+            return;
         }
         this.monsterDeaths?.resolve(
             monster,
@@ -470,6 +498,118 @@ export class GameManager extends Component {
         if (!this.uiLayer) return;
         this.monsterGuide?.init(this.uiLayer);
         this.resultPanels = new ResultPanelController(this.uiLayer, this.camera);
+        this.skillPanel = new SkillPanelController(
+            this.uiLayer,
+            () => this.player?.node?.worldPosition || null,
+            (skill) => {
+                this.playerSkills?.unlock(skill);
+                this.tryShowKillUpgrade();
+            },
+            (_skill, powerGain) => this.applyKillUpgrade(powerGain),
+            (visible, pauseGameplay) => {
+                if (visible && pauseGameplay) this.cancelMovementForSkillPanel();
+                if (pauseGameplay || !visible) this.setGameplayPaused(visible);
+                if (!visible) this.tryShowKillUpgrade();
+            },
+        );
+    }
+
+    /** 升级面板出现时终止未完成的移动，关闭后不恢复旧路径与旧攻击目标。 */
+    private cancelMovementForSkillPanel(): void {
+        this.pathLine?.clear();
+        this.monsterGlow?.hide();
+        const player = this.player;
+        if (!player?.isMoving()) return;
+        player.cancelMovement();
+        this.autoSkills?.clearSelectedTarget();
+        this.monsterCombat?.disengage();
+    }
+
+    private recordMonsterDefeat(): void {
+        this.defeatedMonsterCount++;
+        this.tryShowKillUpgrade();
+    }
+
+    private tryShowKillUpgrade(): void {
+        if (!this.skillPanel || this.skillPanel.isVisible()) return;
+        const upgrade = KillUpgradeConfigs[this.nextKillUpgradeIndex];
+        if (!upgrade || this.defeatedMonsterCount < upgrade.killCount) return;
+        const skill = this.playerSkills?.getCurrentConfig()?.id;
+        if (skill !== 'fireDao' && skill !== 'needle') return;
+        this.nextKillUpgradeIndex++;
+        void this.skillPanel.showUpgrade(skill, upgrade.powerGain);
+    }
+
+    private applyKillUpgrade(powerGain: number): void {
+        const player = this.player;
+        if (!player || !this.playerSkills?.upgradeCurrentSkillQuantity()) return;
+        const gain = Math.max(0, Math.round(powerGain));
+        player.power += gain;
+        this.rewards?.enqueuePlayerPowerGain(gain);
+        AudioManager.playLevelUp();
+        player.playUpgradeEffect(this.playerRoles?.getCurrentProfile().upgradeEffectAnimation);
+    }
+
+    /** 只暂停 GameManager 负责的游戏调度和 GameWorld 内 Spine，UI 仍可正常交互。 */
+    private setGameplayPaused(paused: boolean): void {
+        if (this.gameplayPaused === paused) return;
+        this.gameplayPaused = paused;
+        const scheduler = director.getScheduler();
+        if (paused) {
+            this.pausedSkeletonScales.clear();
+            for (const skeleton of this.node.getComponentsInChildren(sp.Skeleton)) {
+                if (!skeleton?.isValid) continue;
+                this.pausedSkeletonScales.set(skeleton, skeleton.timeScale);
+                skeleton.timeScale = 0;
+            }
+            this.pausedAnimations.clear();
+            for (const animation of this.node.getComponentsInChildren(Animation)) {
+                if (!animation?.isValid) continue;
+                const isPlaying = animation.clips.some(clip => {
+                    return !!clip && animation.getState(clip.name)?.isPlaying;
+                });
+                if (!isPlaying) continue;
+                animation.pause();
+                this.pausedAnimations.add(animation);
+            }
+            this.pausedComponents.length = 0;
+            for (const component of this.node.getComponentsInChildren(Component)) {
+                if (!component?.isValid) continue;
+                scheduler.pauseTarget(component as unknown as ISchedulable);
+                Tween.pauseAllByTarget(component);
+                this.pausedComponents.push(component);
+            }
+            this.pausedTweenNodes.length = 0;
+            this.visitNodeTree(this.node, node => {
+                Tween.pauseAllByTarget(node);
+                this.pausedTweenNodes.push(node);
+            });
+            return;
+        }
+
+        for (const component of this.pausedComponents) {
+            if (!component?.isValid) continue;
+            scheduler.resumeTarget(component as unknown as ISchedulable);
+            Tween.resumeAllByTarget(component);
+        }
+        this.pausedComponents.length = 0;
+        for (const node of this.pausedTweenNodes) {
+            if (node?.isValid) Tween.resumeAllByTarget(node);
+        }
+        this.pausedTweenNodes.length = 0;
+        for (const [skeleton, timeScale] of this.pausedSkeletonScales) {
+            if (skeleton?.isValid) skeleton.timeScale = timeScale;
+        }
+        this.pausedSkeletonScales.clear();
+        for (const animation of this.pausedAnimations) {
+            if (animation?.isValid) animation.resume();
+        }
+        this.pausedAnimations.clear();
+    }
+
+    private visitNodeTree(node: Node, visitor: (node: Node) => void): void {
+        visitor(node);
+        for (const child of node.children) this.visitNodeTree(child, visitor);
     }
 
     // ---------------- 战斗（需�?4/12/13/14�?----------------
@@ -490,6 +630,7 @@ export class GameManager extends Component {
     private lockResultState(): void {
         this.battle?.clear();
         this.finalBossCinematic?.resetForResult();
+        this.skillPanel?.hide();
         this.monsterGuide?.dismiss();
         this.monsterGlow?.hide();
         if (this.pathLine) this.pathLine.clear();

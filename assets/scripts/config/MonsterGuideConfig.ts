@@ -6,6 +6,6 @@ export interface MonsterGuideProfile {
 }
 
 export const MonsterGuideConfig: MonsterGuideProfile = {
-    targetNodeNames: ['fireDao', 'needle'],
+    targetNodeNames: ['box'],
     animationName: 'yindao_dianji',
 };

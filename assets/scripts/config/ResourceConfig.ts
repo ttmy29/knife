@@ -55,6 +55,8 @@ export const ResourcePath = {
 
         Fail: 'result/fail',
         Victory: 'result/victory',
+        SkillPanel: 'result/SkillPanel',
+        Hp: 'result/Hp',
     },
 
     Image: {

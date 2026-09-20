@@ -2,7 +2,7 @@ import { Node, sp } from 'cc';
 import { Chest } from './Chest';
 import { Grid } from './Grid';
 import { Player } from './Player';
-import { ChestPositionConfig, DisplayItemName, EquipmentName } from './config/ChestPositionConfig';
+import { ChestPositionConfig, DisplayItemName, EquipmentName, SkillBoxConfig } from './config/ChestPositionConfig';
 import { MonsterGuideConfig } from './config/MonsterGuideConfig';
 import { PlayerRoleProfiles, PlayerRoleType } from './config/PlayerRoleConfig';
 import { SkillName } from './config/SkillConfig';
@@ -39,6 +39,7 @@ export class ChestController {
         private readonly dismissGuides: () => void,
         private readonly isOpeningSequenceActive: () => boolean,
         private readonly unlockSkill: (name: SkillName) => void,
+        private readonly openSkillPanel: () => void,
     ) {}
 
     setupRenderLayers(): void {
@@ -77,6 +78,9 @@ export class ChestController {
             const chest = box.getComponent(Chest) || box.addComponent(Chest);
             chest.init(grid);
             this.movePresentationToLayers(chest);
+            if (MonsterGuideConfig.targetNodeNames.includes(box.name)) {
+                this.requestGuideStartForNode(box, this.isOpeningSequenceActive());
+            }
         } catch (err) {
             console.error('[ChestController] load box prefab failed', err);
         }
@@ -236,8 +240,10 @@ export class ChestController {
         if (!player) return;
 
         this.clearPathLine();
-        player.power += chest.power;
-        this.applyImmediateDisplayedPowerGain(chest.power);
+        const isSkillBox = chest.node.name === 'box';
+        const powerGain = isSkillBox ? SkillBoxConfig.powerGain : chest.power;
+        player.power += powerGain;
+        this.applyImmediateDisplayedPowerGain(powerGain);
 
         const grid = this.getGrid();
         if (grid) grid.removeChest(chest);
@@ -245,6 +251,12 @@ export class ChestController {
         if (chest.node) chest.node.active = false;
 
         AudioManager.playLevelUp();
+        if (isSkillBox) {
+            this.dismissGuides();
+            player.playUpgradeEffect(PlayerRoleProfiles.role.upgradeEffectAnimation);
+            this.openSkillPanel();
+            return;
+        }
         if (chest.isSkillUnlock()) {
             const skillName = chest.node.name as SkillName;
             this.skillUnlockChests.delete(skillName);

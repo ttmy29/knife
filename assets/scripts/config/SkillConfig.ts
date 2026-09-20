@@ -122,7 +122,7 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         monsterImpactEffect: 'boom',
         monsterImpactEffectAnimation: 'molotovAttackhits',
         projectileSpeed: 400,
-        projectileCount: 3,
+        projectileCount: 1,//数量
         projectileInterval: 0.2,
         hitRadius: 40,
         maxTravelTime: 3,
@@ -143,9 +143,9 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         rotateToTarget: true,
         projectileAngleOffset: 0,
         keepTemplateVisible: true,
-        orbitBladeCount: 3,
+        orbitBladeCount: 1,//数量
         orbitAngularSpeed: 180,
-        orbitRadius: 128,
+        orbitRadius: 88,
         orbitTurnSmoothing: 18,
         orbitReturnSpeed: 520,
         orbitRejoinRadius: 24,

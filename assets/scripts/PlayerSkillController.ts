@@ -20,6 +20,7 @@ interface OrbitBlade {
     node: Node;
     homeParent: Node;
     homeScale: Vec3;
+    targetPosition: Vec3;
     radius: number;
     angle: number;
     z: number;
@@ -45,7 +46,8 @@ export class PlayerSkillController {
     private casting = false;
     private playbackTimeScale = 1;
     private readonly orbitBlades: OrbitBlade[] = [];
-    private nextOrbitBladeIndex = 0;
+    private readonly quantityBonuses = new Map<SkillName, number>();
+    private pendingOrbitRebuild = false;
 
     constructor(
         private readonly host: Component,
@@ -85,13 +87,29 @@ export class PlayerSkillController {
         return SkillConfigs[this.currentSkill];
     }
 
+    /** 当前技能数量提升一级；伤害仍由角色实时战力决定。 */
+    upgradeCurrentSkillQuantity(): boolean {
+        const config = this.getCurrentConfig();
+        if (!config || (config.id !== 'fireDao' && config.id !== 'needle')) return false;
+        this.quantityBonuses.set(config.id, (this.quantityBonuses.get(config.id) || 0) + 1);
+        if (config.id === 'needle') {
+            const canRebuildNow = this.orbitBlades.every(blade => blade.state === 'orbiting');
+            if (canRebuildNow) {
+                this.pendingOrbitRebuild = false;
+                this.startTemplateOrbit(config);
+            }
+            else this.pendingOrbitRebuild = true;
+        }
+        return true;
+    }
+
     isCasting(): boolean {
         return this.casting;
     }
 
     /** 同步控制技能 Spine 与飞行过程的播放速度。 */
     setPlaybackTimeScale(scale: number): void {
-        this.playbackTimeScale = Math.max(0.01, scale);
+        this.playbackTimeScale = Math.max(0, scale);
         for (const instance of this.activeInstances) {
             if (!instance?.isValid) continue;
             const baseSpeed = this.animationBaseSpeeds.get(instance) ?? 1;
@@ -100,7 +118,7 @@ export class PlayerSkillController {
             }
         }
         for (const blade of this.orbitBlades) {
-            if (!blade.node.isValid || blade.state === 'orbiting') continue;
+            if (!blade.node.isValid) continue;
             const baseSpeed = this.animationBaseSpeeds.get(blade.node)
                 ?? Math.max(0, SkillConfigs.needle.animationSpeed);
             for (const skeleton of blade.node.getComponentsInChildren(sp.Skeleton)) {
@@ -134,7 +152,7 @@ export class PlayerSkillController {
                 isFinalBoss,
             );
         }
-        if (config.castType === 'projectile' && Math.max(1, config.projectileCount || 1) > 1) {
+        if (config.castType === 'projectile' && this.getProjectileCount(config) > 1) {
             return this.castProjectileVolley(
                 player,
                 monster,
@@ -267,6 +285,8 @@ export class PlayerSkillController {
         this.currentSkill = null;
         this.casting = false;
         this.playbackTimeScale = 1;
+        this.quantityBonuses.clear();
+        this.pendingOrbitRebuild = false;
         this.clearOrbitBlades();
     }
 
@@ -352,7 +372,7 @@ export class PlayerSkillController {
         onComplete: () => void,
         isFinalBoss: boolean,
     ): boolean {
-        const count = Math.max(1, Math.round(config.projectileCount || 1));
+        const count = this.getProjectileCount(config);
         const interval = Math.max(0, config.projectileInterval || 0);
         const lockedTargetPosition = monster.node.worldPosition.clone();
         const totalDamage = this.getCastTotalDamage(player, config);
@@ -443,7 +463,7 @@ export class PlayerSkillController {
                 directionNode.position.x * template.scale.x,
             ) * 180 / Math.PI
             : 0;
-        const count = Math.max(1, Math.round(config.orbitBladeCount || 1));
+        const count = this.getOrbitBladeCount(config);
         for (let index = 0; index < count; index++) {
             const node = index === 0 ? template : instantiate(template);
             if (index > 0) {
@@ -461,6 +481,7 @@ export class PlayerSkillController {
                 node,
                 homeParent,
                 homeScale: template.scale.clone(),
+                targetPosition: new Vec3(),
                 radius,
                 angle,
                 z: position.z,
@@ -475,7 +496,6 @@ export class PlayerSkillController {
                 isTemplate: index === 0,
             });
         }
-        this.nextOrbitBladeIndex = 0;
     }
 
     private updateTemplateOrbit(dt: number): void {
@@ -513,7 +533,7 @@ export class PlayerSkillController {
         }
     }
 
-    /** needle 使用当前环绕的同一把飞剑出击，不再复制新投射物。 */
+    /** needle 一次把所有环绕飞剑同时发射，本轮总伤害在飞剑之间分摊。 */
     private castOrbitProjectile(
         player: Player,
         monster: Monster,
@@ -523,43 +543,52 @@ export class PlayerSkillController {
         isFinalBoss: boolean,
     ): boolean {
         if (this.orbitBlades.length === 0) this.startTemplateOrbit(config);
-        const blade = this.findAvailableOrbitBlade();
-        if (!blade) return false;
-        const node = blade.node;
+        const blades = this.orbitBlades.filter(blade => blade.node.isValid && blade.node.active);
+        if (blades.length === 0 || blades.some(blade => blade.state !== 'orbiting')) return false;
 
-        const worldPosition = node.worldPosition.clone();
-        const worldRotation = node.worldRotation.clone();
-        const worldScale = node.worldScale.clone();
-        this.worldNode.addChild(node);
-        node.setWorldPosition(worldPosition);
-        node.setWorldRotation(worldRotation);
-        node.setWorldScale(worldScale);
+        const totalDamage = this.getCastTotalDamage(player, config);
+        const baseDamage = totalDamage === undefined ? undefined : Math.floor(totalDamage / blades.length);
+        const damageRemainder = totalDamage === undefined ? 0 : totalDamage % blades.length;
+        let remaining = blades.length;
+        let completed = false;
+        const finishOne = () => {
+            remaining--;
+            if (remaining > 0 || completed) return;
+            completed = true;
+            onComplete();
+        };
 
-        blade.state = 'attacking';
-        blade.target = monster;
-        blade.elapsed = 0;
-        const castDamage = this.getCastTotalDamage(player, config);
-        blade.impact = () => onImpact(castDamage);
-        blade.finish = onComplete;
-        this.animationBaseSpeeds.set(node, Math.max(0, config.animationSpeed));
-        this.playEffectAnimation(node, config);
+        for (let index = 0; index < blades.length; index++) {
+            const blade = blades[index];
+            const node = blade.node;
+            const worldPosition = node.worldPosition.clone();
+            const worldRotation = node.worldRotation.clone();
+            const worldScale = node.worldScale.clone();
+            this.worldNode.addChild(node);
+            node.setWorldPosition(worldPosition);
+            node.setWorldRotation(worldRotation);
+            node.setWorldScale(worldScale);
+
+            const bladeDamage = baseDamage === undefined
+                ? undefined
+                : baseDamage + (index < damageRemainder ? 1 : 0);
+            blade.state = 'attacking';
+            blade.target = monster;
+            blade.targetPosition.set(monster.node.worldPosition);
+            blade.elapsed = 0;
+            blade.impact = () => onImpact(bladeDamage);
+            blade.finish = finishOne;
+            this.animationBaseSpeeds.set(node, Math.max(0, config.animationSpeed));
+            this.playEffectAnimation(node, config);
+            this.rotateProjectileToTarget(
+                node,
+                monster.node.worldPosition,
+                config.projectileAngleOffset || 0,
+            );
+        }
         if (isFinalBoss) AudioManager.playHeHa();
         AudioManager.playRoleSkill(config.id, !isFinalBoss);
-        this.rotateProjectileToTarget(node, monster.node.worldPosition, config.projectileAngleOffset || 0);
         return true;
-    }
-
-    private findAvailableOrbitBlade(): OrbitBlade | null {
-        const count = this.orbitBlades.length;
-        for (let offset = 0; offset < count; offset++) {
-            const index = (this.nextOrbitBladeIndex + offset) % count;
-            const blade = this.orbitBlades[index];
-            if (blade.node.isValid && blade.node.active && blade.state === 'orbiting') {
-                this.nextOrbitBladeIndex = (index + 1) % count;
-                return blade;
-            }
-        }
-        return null;
     }
 
     private updateOrbitSortie(blade: OrbitBlade, config: SkillConfig, dt: number): void {
@@ -567,14 +596,12 @@ export class PlayerSkillController {
         blade.elapsed += dt;
         if (blade.state === 'attacking') {
             const target = blade.target;
-            if (!target?.node?.isValid || !target.node.activeInHierarchy) {
-                this.beginOrbitReturn(blade, true);
-                return;
+            if (target?.node?.isValid && target.node.activeInHierarchy) {
+                blade.targetPosition.set(target.node.worldPosition);
             }
-            const targetPosition = target.node.worldPosition;
             const arrived = this.moveOrbitNodeTowards(
                 node,
-                targetPosition,
+                blade.targetPosition,
                 Math.max(0, config.projectileSpeed || 0),
                 Math.max(0, config.hitRadius || 0),
                 dt,
@@ -596,7 +623,7 @@ export class PlayerSkillController {
 
         const returnPosition = this.getOrbitWorldPosition(blade);
         if (!returnPosition) {
-            this.completeOrbitReturn(blade);
+            this.completeOrbitReturn(blade, config);
             return;
         }
         const arrived = this.moveOrbitNodeTowards(
@@ -609,7 +636,7 @@ export class PlayerSkillController {
             config.projectileAngleOffset || 0,
         );
         const timeout = Math.max(0.01, config.orbitReturnTimeout || config.forceHideTimeout);
-        if (arrived || blade.elapsed >= timeout) this.completeOrbitReturn(blade);
+        if (arrived || blade.elapsed >= timeout) this.completeOrbitReturn(blade, config);
     }
 
     private moveOrbitNodeTowards(
@@ -661,7 +688,7 @@ export class PlayerSkillController {
         return Vec3.transformMat4(new Vec3(), localPosition, parent.worldMatrix);
     }
 
-    private completeOrbitReturn(blade: OrbitBlade): void {
+    private completeOrbitReturn(blade: OrbitBlade, config: SkillConfig): void {
         const node = blade.node;
         const parent = blade.homeParent;
         if (node.isValid && parent.isValid) {
@@ -680,6 +707,20 @@ export class PlayerSkillController {
         blade.target = null;
         blade.elapsed = 0;
         blade.impact = null;
+        this.tryRebuildOrbitAfterUpgrade(config);
+    }
+
+    /** 升级可能发生在命中之后；等待全部飞剑真正回轨，再按新数量重建。 */
+    private tryRebuildOrbitAfterUpgrade(config: SkillConfig): void {
+        if (!this.pendingOrbitRebuild || this.currentSkill !== 'needle') return;
+        const allReturned = this.orbitBlades.every(blade => {
+            return !blade.node.isValid || blade.state === 'orbiting';
+        });
+        if (!allReturned) return;
+        this.pendingOrbitRebuild = false;
+        this.host.scheduleOnce(() => {
+            if (this.currentSkill === 'needle') this.startTemplateOrbit(config);
+        }, 0);
     }
 
     private finishOrbitCast(blade: OrbitBlade): void {
@@ -705,15 +746,28 @@ export class PlayerSkillController {
             }
         }
         this.orbitBlades.length = 0;
-        this.nextOrbitBladeIndex = 0;
     }
 
     private getCastTotalDamage(player: Player, config: SkillConfig): number | undefined {
         if (config.damageMode === 'player-power') {
-            return Math.max(0, Math.round(player.getDisplayedPower()));
+            // 战斗结算统一使用真实战力；displayedPower 仅用于数字渐变展示，
+            // 否则击杀奖励正在滚动时会造成“战力高于怪物但伤害不足”。
+            return Math.max(0, Math.round(player.power));
         }
         if (config.damage !== undefined) return Math.max(0, Math.round(config.damage));
         return undefined;
+    }
+
+    private getProjectileCount(config: SkillConfig): number {
+        return Math.max(1, Math.round(
+            (config.projectileCount || 1) + (this.quantityBonuses.get(config.id) || 0),
+        ));
+    }
+
+    private getOrbitBladeCount(config: SkillConfig): number {
+        return Math.max(1, Math.round(
+            (config.orbitBladeCount || 1) + (this.quantityBonuses.get(config.id) || 0),
+        ));
     }
 
     private createEffectInstance(player: Player, config: SkillConfig): Node | null {

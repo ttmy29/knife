@@ -15,6 +15,8 @@ type PrefabKey =
     | 'light'
     | 'fail'
     | 'victory'
+    | 'skillPanel'
+    | 'hp'
     | 'box'
     | 'powerSuit'
     | 'dao'
@@ -41,6 +43,8 @@ const PREFAB_LOAD_CONFIG: Record<PrefabKey, { bundle: string; path: string }> = 
     light: { bundle: ResourcePath.Bundle.Roles, path: ResourcePath.Prefab.Light },
     fail: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Fail },
     victory: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Victory },
+    skillPanel: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.SkillPanel },
+    hp: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Hp },
     box: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Box },
     powerSuit: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.PowerSuit },
     dao: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Dao },
@@ -107,6 +111,14 @@ export class PrefabManager {
         return this.loadPrefab('victory');
     }
 
+    static loadSkillPanel(): Promise<Prefab> {
+        return this.loadPrefab('skillPanel');
+    }
+
+    static loadHp(): Promise<Prefab> {
+        return this.loadPrefab('hp');
+    }
+
     static loadBox(): Promise<Prefab> {
         return this.loadPrefab('box');
     }
@@ -171,6 +183,14 @@ export class PrefabManager {
 
     static createVictory(): Node {
         return this.createLoadedPrefab('victory');
+    }
+
+    static async createSkillPanel(): Promise<Node> {
+        return instantiate(await this.loadSkillPanel());
+    }
+
+    static createHp(): Node {
+        return this.createLoadedPrefab('hp');
     }
 
     static async createBox(): Promise<Node> {

@@ -261,6 +261,15 @@ export class Player extends Component {
         this.moving = false;
     }
 
+    /** 彻底取消当前寻路；恢复后不会继续旧路径或触发旧目标战斗。 */
+    cancelMovement(): void {
+        this.moving = false;
+        this.waypoints = [];
+        this.pathIndex = 0;
+        this.pendingMonster = null;
+        if (!this.dead && !this.interacting) this.playIdle();
+    }
+
     /** 技能已远程击杀目标时，保留当前移动但取消到达后的重复战斗。 */
     clearPendingMonster(monster: Monster): void {
         if (this.pendingMonster === monster) this.pendingMonster = null;
