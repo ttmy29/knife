@@ -1,0 +1,76 @@
+
+江湖宵小.png
+size: 94, 265
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+shadow
+  rotate: true
+  xy: 2, 17
+  size: 88, 45
+  orig: 91, 47
+  offset: 1, 1
+  index: -1
+宵小右手
+  rotate: false
+  xy: 49, 5
+  size: 42, 18
+  orig: 43, 19
+  offset: 0, 1
+  index: -1
+宵小右肩
+  rotate: true
+  xy: 58, 118
+  size: 30, 20
+  orig: 37, 21
+  offset: 6, 1
+  index: -1
+宵小右腿
+  rotate: true
+  xy: 58, 222
+  size: 41, 34
+  orig: 49, 34
+  offset: 8, 0
+  index: -1
+宵小头
+  rotate: false
+  xy: 2, 177
+  size: 54, 86
+  orig: 58, 86
+  offset: 4, 0
+  index: -1
+宵小左手
+  rotate: false
+  xy: 49, 25
+  size: 43, 80
+  orig: 46, 80
+  offset: 3, 0
+  index: -1
+宵小左腿
+  rotate: true
+  xy: 58, 184
+  size: 36, 34
+  orig: 36, 34
+  offset: 0, 0
+  index: -1
+宵小胯
+  rotate: true
+  xy: 58, 150
+  size: 32, 22
+  orig: 33, 23
+  offset: 0, 1
+  index: -1
+宵小腰带
+  rotate: true
+  xy: 2, 2
+  size: 13, 29
+  orig: 13, 29
+  offset: 0, 0
+  index: -1
+宵小身体
+  rotate: false
+  xy: 2, 107
+  size: 54, 68
+  orig: 56, 71
+  offset: 0, 0
+  index: -1

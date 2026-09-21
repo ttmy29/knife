@@ -79,13 +79,15 @@ export class AutoSkillController {
                 this.onCastComplete(skillTarget, config);
             },
             isFinalMonster,
+            () => {
+                if (skills) bossCinematic?.startSkillSlowMotion(player, skillTarget, skills);
+                this.resetCooldown();
+            },
         ) || false;
         if (!casted) {
             this.activeTargets.delete(skillTarget);
             return;
         }
-        if (skills) bossCinematic?.startSkillSlowMotion(player, skillTarget, skills);
-        this.resetCooldown();
     }
 
     isTargeted(monster: Monster): boolean {

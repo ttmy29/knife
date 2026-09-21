@@ -1,4 +1,4 @@
-import { Animation, Camera, Component, Node, sp } from 'cc';
+import { Camera, Component, Node, sp } from 'cc';
 import { AutoSkillController } from './AutoSkillController';
 import { CameraFollow } from './CameraFollow';
 import { Grid } from './Grid';
@@ -39,7 +39,6 @@ export class MonsterDeathController {
         deathAnimation?: string,
         impactEffect?: 'boom' | 'boom2' | 'light',
         impactEffectAnimation?: string,
-        playDeadEffect = true,
     ): boolean {
         if (this.defeatedMonsters.has(monster)) return false;
         const player = this.getPlayer();
@@ -83,7 +82,6 @@ export class MonsterDeathController {
                 if (resolvedImpactEffect) {
                     this.playImpactEffect(monster, resolvedImpactEffect, resolvedImpactAnimation);
                 }
-                if (playDeadEffect) this.playDeadEffect(monster);
                 monster.playHitReaction(usableHitAnimation, hideMonster);
                 this.host.scheduleOnce(hideMonster, SkillSystemConfig.monsterForceHideTimeout);
                 this.dropExperience(monster, rewardPower, () => this.onMonsterDefeated(monster));
@@ -97,7 +95,6 @@ export class MonsterDeathController {
                 if (resolvedImpactEffect) {
                     this.playImpactEffect(monster, resolvedImpactEffect, resolvedImpactAnimation);
                 }
-                if (playDeadEffect) this.playDeadEffect(monster);
                 monster.playDie(hideMonster, deathAnimation);
                 this.host.scheduleOnce(hideMonster, SkillSystemConfig.monsterForceHideTimeout);
             };
@@ -120,39 +117,6 @@ export class MonsterDeathController {
             rewards.enqueuePlayerPowerGain(rewardPower);
             onAbsorbed();
         });
-    }
-
-    /** 怪物开始 die 时，在 TempLayer 播放一次帧动画死亡特效。 */
-    private playDeadEffect(monster: Monster): void {
-        const tempLayer = this.worldNode.getChildByName('TempLayer');
-        if (!tempLayer || !monster.node || !monster.node.isValid) return;
-
-        let effect: Node;
-        try {
-            effect = PrefabManager.createDeadEffect();
-        } catch (err) {
-            console.error('[MonsterDeathController] create deadEffect failed', err);
-            return;
-        }
-
-        const worldPosition = monster.node.worldPosition.clone();
-        worldPosition.y += SkillSystemConfig.deathEffectOffsetY;
-        effect.active = false;
-        tempLayer.addChild(effect);
-        effect.setWorldPosition(worldPosition);
-        effect.active = true;
-        this.activeEffects.add(effect);
-
-        const cleanup = this.createEffectCleanup(effect);
-        const animation = effect.getComponent(Animation) || effect.getComponentInChildren(Animation);
-        if (!animation) {
-            console.warn('[MonsterDeathController] deadEffect Animation component is missing');
-            this.host.scheduleOnce(cleanup, 3);
-            return;
-        }
-        animation.once(Animation.EventType.FINISHED, cleanup);
-        animation.play('animation');
-        this.host.scheduleOnce(cleanup, 3);
     }
 
     /** 技能命中死亡时，在 TempLayer 播放对应的 Spine 特效。 */

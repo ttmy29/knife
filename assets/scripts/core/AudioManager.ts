@@ -38,6 +38,7 @@ export class AudioManager {
     private static bgmClip: AudioClip | null = null;
     private static readonly bgmVolume = 0.8;
     private static readonly sfxVolume = 2;
+    private static readonly levelUpVolume = 4;
     private static readonly roleSkillVolume = 4;
 
     static init(owner: Node, assets: GameAssets): void {
@@ -79,6 +80,10 @@ export class AudioManager {
             needle: 'skill2',
         };
         void this.playRoleSkillSequence(skillAudio[skill], includeRoleAttack);
+    }
+
+    static playRoleAttack(): void {
+        void this.playSfxByKey('roleAttack', this.roleSkillVolume);
     }
 
     static async preload(keys: readonly GameAudioKey[]): Promise<void> {
@@ -149,7 +154,7 @@ export class AudioManager {
     }
 
     static playLevelUp(): void {
-        void this.playSfxByKey('levelUp');
+        void this.playSfxByKey('levelUp', this.levelUpVolume);
     }
 
     static playCheer(): void {
@@ -187,13 +192,16 @@ export class AudioManager {
         source.play();
     }
 
-    private static async playSfxByKey(key: GameAudioKey): Promise<void> {
+    private static async playSfxByKey(
+        key: GameAudioKey,
+        volume = this.sfxVolume,
+    ): Promise<void> {
         const source = this.source;
         if (!source) return;
 
         const clip = await this.getClip(key);
         if (!clip || !source.isValid) return;
-        source.playOneShot(clip, this.sfxVolume);
+        source.playOneShot(clip, volume);
     }
 
     private static async playRoleSkillSequence(

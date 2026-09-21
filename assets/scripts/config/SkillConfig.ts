@@ -67,8 +67,6 @@ export interface SkillConfig {
     monsterImpactEffect?: 'boom' | 'boom2' | 'light';
     /** 额外命中特效播放的 Spine 动画。 */
     monsterImpactEffectAnimation?: string;
-    /** 击杀怪物时是否播放通用 deadEffect。 */
-    playDeadEffect: boolean;
     forceHideTimeout: number;
 }
 
@@ -81,8 +79,11 @@ export const SkillSystemConfig = {
     waitForSkillFinish: true,
     playMonsterDeathAnimation: true,
     monsterForceHideTimeout: 3,
-    /** 怪物死亡帧动画相对怪物世界坐标的 Y 偏移。 */
-    deathEffectOffsetY: 50,
+    /** 角色真正释放技能前播放的准备 Spine。 */
+    castPrepareNodeName: 'wait',
+    castPrepareAnimation: 'animation',
+    /** wait 播放时长；到时隐藏并真正释放技能。 */
+    castPrepareDuration: 0.5,
 };
 
 /** role4 技能：场景同名道具负责解锁，Effects 下同名节点作为施法模板。 */
@@ -103,7 +104,6 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         segmentDistance: 100,
         monsterHitAnimation: 'hitFly',
         monsterDeathAnimation: 'die',
-        playDeadEffect: true,
         forceHideTimeout: 3,
     },
     fireDao: {
@@ -126,7 +126,6 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         projectileInterval: 0.2,
         hitRadius: 40,
         maxTravelTime: 3,
-        playDeadEffect: false,
         forceHideTimeout: 3,
     },
     needle: {
@@ -137,7 +136,7 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         animationSpeed: 1,
         animationLoop: true,
         randomWeight: 1,
-        attackRange: 280,
+        attackRange: 320,
         attackInterval: 1,
         damageMode: 'player-power',
         rotateToTarget: true,
@@ -152,10 +151,9 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         orbitReturnTimeout: 3,
         monsterImpactEffect: 'boom',
         monsterImpactEffectAnimation: 'molotovAttackhits',
-        projectileSpeed: 600,
+        projectileSpeed: 1000,
         hitRadius: 40,
         maxTravelTime: 3,
-        playDeadEffect: false,
         forceHideTimeout: 3,
     },
     wheel: {
@@ -173,7 +171,6 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         maxTravelTime: 3,
         monsterImpactEffect: 'boom2',
         monsterImpactEffectAnimation: 'skill1_hit',
-        playDeadEffect: false,
         forceHideTimeout: 3,
     },
 };

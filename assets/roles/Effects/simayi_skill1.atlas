@@ -1,0 +1,104 @@
+
+simayi_skill1.png
+size: 522,156
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+fxsk101_0011
+  rotate: false
+  xy: 271, 2
+  size: 25, 25
+  orig: 25, 25
+  offset: 0, 0
+  index: -1
+fxsk101_0012
+  rotate: false
+  xy: 329, 5
+  size: 45, 22
+  orig: 45, 22
+  offset: 0, 0
+  index: -1
+fxsk101_0013
+  rotate: false
+  xy: 143, 12
+  size: 43, 14
+  orig: 43, 14
+  offset: 0, 0
+  index: -1
+fxsk101_0014
+  rotate: true
+  xy: 376, 6
+  size: 21, 20
+  orig: 21, 20
+  offset: 0, 0
+  index: -1
+fxsk101_0015
+  rotate: true
+  xy: 399, 12
+  size: 142, 42
+  orig: 142, 42
+  offset: 0, 0
+  index: -1
+fxsk101_0016
+  rotate: false
+  xy: 2, 15
+  size: 139, 139
+  orig: 139, 139
+  offset: 0, 0
+  index: -1
+fxsk101_0017
+  rotate: false
+  xy: 143, 28
+  size: 126, 126
+  orig: 126, 126
+  offset: 0, 0
+  index: -1
+fxsk101_0018
+  rotate: false
+  xy: 271, 29
+  size: 126, 125
+  orig: 126, 125
+  offset: 0, 0
+  index: -1
+fxsk101_0020
+  rotate: true
+  xy: 443, 98
+  size: 56, 44
+  orig: 56, 44
+  offset: 0, 0
+  index: -1
+fxsk101_0021
+  rotate: false
+  xy: 475, 49
+  size: 44, 47
+  orig: 44, 47
+  offset: 0, 0
+  index: -1
+fxsk101_0022
+  rotate: true
+  xy: 475, 11
+  size: 36, 44
+  orig: 36, 44
+  offset: 0, 0
+  index: -1
+fxsk101_0023
+  rotate: false
+  xy: 489, 117
+  size: 31, 37
+  orig: 31, 37
+  offset: 0, 0
+  index: -1
+fxsk101_0024
+  rotate: false
+  xy: 298, 3
+  size: 29, 24
+  orig: 29, 24
+  offset: 0, 0
+  index: -1
+fxsk109_0008
+  rotate: false
+  xy: 443, 30
+  size: 30, 66
+  orig: 30, 66
+  offset: 0, 0
+  index: -1

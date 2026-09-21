@@ -14,7 +14,6 @@ type ResolveMonsterDefeat = (
     deathAnimation?: string,
     impactEffect?: 'boom' | 'boom2' | 'light',
     impactEffectAnimation?: string,
-    playDeadEffect?: boolean,
 ) => void;
 
 /** 负责进入怪物范围后的停步、战力判断、技能等待和角色死亡流程。 */
@@ -131,7 +130,6 @@ export class BattleController {
             deathAnimation?: string,
             impactEffect?: 'boom' | 'boom2' | 'light',
             impactEffectAnimation?: string,
-            playDeadEffect?: boolean,
         ) => {
             if (battleResolved) return;
             battleResolved = true;
@@ -141,7 +139,6 @@ export class BattleController {
                 deathAnimation,
                 impactEffect,
                 impactEffectAnimation,
-                playDeadEffect,
             );
         };
         const finishSkill = () => {
@@ -188,7 +185,6 @@ export class BattleController {
                         currentSkillConfig?.monsterDeathAnimation,
                         currentSkillConfig?.monsterImpactEffect,
                         currentSkillConfig?.monsterImpactEffectAnimation,
-                        currentSkillConfig?.playDeadEffect,
                     );
                 },
                 () => {
@@ -196,10 +192,12 @@ export class BattleController {
                     finishSkill();
                 },
                 isFinalMonster,
+                () => {
+                    if (skills) bossCinematic?.startSkillSlowMotion(currentPlayer, monster, skills);
+                    autoSkills?.resetCooldown();
+                },
             ) || false;
             if (skillCasted) {
-                if (skills) bossCinematic?.startSkillSlowMotion(currentPlayer, monster, skills);
-                autoSkills?.resetCooldown();
                 return;
             }
 

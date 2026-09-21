@@ -36,12 +36,12 @@ export const MonsterProfiles: Record<MonsterType, MonsterProfile> = {
     monster2: {
         moveAnimation: 'move',
         attackAnimation: 'attack',
-        deathAnimation: 'hitFly',
+        deathAnimation: 'die',
     },
     monster3: {
         moveAnimation: 'move',
         attackAnimation: 'attack',
-        deathAnimation: 'hitFly',
+        deathAnimation: 'die',
     },
     monster4: {
         moveAnimation: 'move',

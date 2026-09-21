@@ -33,7 +33,7 @@ import { PrefabManager } from './core/PrefabManager';
 import { AttackAudioType } from './config/ResourceConfig';
 import { GameAssets } from './GameAssets';
 import { isDamageSkill, SkillConfig } from './config/SkillConfig';
-import { KillUpgradeConfigs } from './config/KillUpgradeConfig';
+import { KillUpgradeConfigs, KillUpgradePanelEnabled } from './config/KillUpgradeConfig';
 
 const { ccclass, property } = _decorator;
 
@@ -136,7 +136,11 @@ export class GameManager extends Component {
         const skillLayer = this.node.getChildByName('TempLayer');
         if (!skillLayer) console.warn('[GameManager] GameWorld/TempLayer is missing');
         this.damageNumbers = new DamageNumberController(skillLayer || this.node);
-        this.playerSkills = new PlayerSkillController(this, skillLayer || this.node);
+        this.playerSkills = new PlayerSkillController(
+            this,
+            skillLayer || this.node,
+            () => this.pathLine?.clear(),
+        );
         this.autoSkills = new AutoSkillController(
             () => this.player,
             () => this.playerSkills,
@@ -182,14 +186,13 @@ export class GameManager extends Component {
             () => this.monsterGlow?.hide(),
             () => this.pathLine?.clear(),
             () => this.openingSequence?.stopHelpSounds(),
-            (monster, hitAnimation, deathAnimation, impactEffect, impactEffectAnimation, playDeadEffect) => {
+            (monster, hitAnimation, deathAnimation, impactEffect, impactEffectAnimation) => {
                 this.monsterDeaths?.resolve(
                     monster,
                     hitAnimation,
                     deathAnimation,
                     impactEffect,
                     impactEffectAnimation,
-                    playDeadEffect,
                 );
             },
             () => this.showDeathUI(),
@@ -246,6 +249,7 @@ export class GameManager extends Component {
             () => this.openingSequence?.active || false,
             () => (this.battle?.isBattling() || false)
                 || (this.skillPanel?.isVisible() || false)
+                || (this.playerSkills?.isPreparingCast() || false)
                 || (this.monsterCombat?.isInputLocked() || false),
             this.monsterGlow,
             () => this.monsterGuide?.dismiss() || false,
@@ -360,7 +364,6 @@ export class GameManager extends Component {
             AudioManager.preload(audioKeys),
             PrefabManager.loadFail(),
             PrefabManager.loadVictory(),
-            PrefabManager.loadDeadEffect(),
             PrefabManager.loadBoom(),
             PrefabManager.loadBoom2(),
             PrefabManager.loadLight(),
@@ -487,7 +490,6 @@ export class GameManager extends Component {
             config.monsterDeathAnimation,
             config.monsterImpactEffect,
             config.monsterImpactEffectAnimation,
-            config.playDeadEffect,
         );
     }
 
@@ -531,13 +533,14 @@ export class GameManager extends Component {
     }
 
     private tryShowKillUpgrade(): void {
-        if (!this.skillPanel || this.skillPanel.isVisible()) return;
         const upgrade = KillUpgradeConfigs[this.nextKillUpgradeIndex];
         if (!upgrade || this.defeatedMonsterCount < upgrade.killCount) return;
         const skill = this.playerSkills?.getCurrentConfig()?.id;
         if (skill !== 'fireDao' && skill !== 'needle') return;
+        if (KillUpgradePanelEnabled && (!this.skillPanel || this.skillPanel.isVisible())) return;
         this.nextKillUpgradeIndex++;
-        void this.skillPanel.showUpgrade(skill, upgrade.powerGain);
+        if (KillUpgradePanelEnabled) void this.skillPanel?.showUpgrade(skill, upgrade.powerGain);
+        else this.applyKillUpgrade(upgrade.powerGain);
     }
 
     private applyKillUpgrade(powerGain: number): void {

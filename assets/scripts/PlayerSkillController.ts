@@ -1,7 +1,7 @@
 import { Component, instantiate, Node, sp, Vec3 } from 'cc';
 import { Monster } from './Monster';
 import { Player } from './Player';
-import { SkillConfig, SkillConfigs, SkillName } from './config/SkillConfig';
+import { SkillConfig, SkillConfigs, SkillName, SkillSystemConfig } from './config/SkillConfig';
 import { AudioManager } from './core/AudioManager';
 
 interface ActiveProjectile {
@@ -44,6 +44,8 @@ export class PlayerSkillController {
     private readonly animationBaseSpeeds = new Map<Node, number>();
     private player: Player | null = null;
     private casting = false;
+    private preparingCast = false;
+    private preparationNode: Node | null = null;
     private playbackTimeScale = 1;
     private readonly orbitBlades: OrbitBlade[] = [];
     private readonly quantityBonuses = new Map<SkillName, number>();
@@ -52,6 +54,7 @@ export class PlayerSkillController {
     constructor(
         private readonly host: Component,
         private readonly worldNode: Node,
+        private readonly onStopForCast: () => void,
     ) {}
 
     bindPlayer(player: Player): void {
@@ -104,7 +107,11 @@ export class PlayerSkillController {
     }
 
     isCasting(): boolean {
-        return this.casting;
+        return this.preparingCast || this.casting;
+    }
+
+    isPreparingCast(): boolean {
+        return this.preparingCast;
     }
 
     /** 同步控制技能 Spine 与飞行过程的播放速度。 */
@@ -134,14 +141,74 @@ export class PlayerSkillController {
         onImpact: (damage?: number) => void,
         onComplete: () => void,
         isFinalBoss = false,
+        onRelease?: () => void,
     ): boolean {
         const config = this.getCurrentConfig();
-        if (!config) return false;
+        if (!config || this.isCasting()) return false;
         if (config.castType === 'orbit-projectile') {
-            return this.castOrbitProjectile(player, monster, config, onImpact, onComplete, isFinalBoss);
+            if (!this.canCastOrbitProjectile(config)) return false;
+        } else if (!this.findTemplate(player, config.effectNodeName)) {
+            return false;
         }
-        if (!this.findTemplate(player, config.effectNodeName)) return false;
-        if (this.isCasting()) return false;
+
+        const releaseSkill = (): boolean => {
+            if (!player.node?.isValid || player.dead
+                || !monster.node?.isValid || !monster.node.activeInHierarchy) {
+                onComplete();
+                return false;
+            }
+            const casted = this.castCurrentSkillNow(
+                player,
+                monster,
+                config,
+                onImpact,
+                onComplete,
+                isFinalBoss,
+                !waitNode,
+            );
+            if (!casted) {
+                onComplete();
+                return false;
+            }
+            onRelease?.();
+            return true;
+        };
+
+        const waitNode = player.node.getChildByName(SkillSystemConfig.castPrepareNodeName);
+        if (!waitNode) return releaseSkill();
+
+        this.preparingCast = true;
+        player.cancelMovement();
+        this.onStopForCast();
+        if (!isFinalBoss) AudioManager.playRoleAttack();
+        this.playCastPreparation(
+            waitNode,
+            () => { releaseSkill(); },
+            () => { this.preparingCast = false; },
+        );
+        return true;
+    }
+
+    private castCurrentSkillNow(
+        player: Player,
+        monster: Monster,
+        config: SkillConfig,
+        onImpact: (damage?: number) => void,
+        onComplete: () => void,
+        isFinalBoss: boolean,
+        includeRoleAttack: boolean,
+    ): boolean {
+        if (config.castType === 'orbit-projectile') {
+            return this.castOrbitProjectile(
+                player,
+                monster,
+                config,
+                onImpact,
+                onComplete,
+                isFinalBoss,
+                includeRoleAttack,
+            );
+        }
         if (config.castType === 'target-area' && Math.max(1, config.segmentCount || 1) > 1) {
             return this.castSegmentedTargetArea(
                 player,
@@ -150,6 +217,7 @@ export class PlayerSkillController {
                 onImpact,
                 onComplete,
                 isFinalBoss,
+                includeRoleAttack,
             );
         }
         if (config.castType === 'projectile' && this.getProjectileCount(config) > 1) {
@@ -160,13 +228,14 @@ export class PlayerSkillController {
                 onImpact,
                 onComplete,
                 isFinalBoss,
+                includeRoleAttack,
             );
         }
         const instance = this.createEffectInstance(player, config);
         if (!instance) return false;
         this.casting = true;
         if (isFinalBoss) AudioManager.playHeHa();
-        AudioManager.playRoleSkill(config.id, !isFinalBoss);
+        AudioManager.playRoleSkill(config.id, includeRoleAttack && !isFinalBoss);
 
         let impacted = false;
         let finished = false;
@@ -208,6 +277,37 @@ export class PlayerSkillController {
             });
         }
         return true;
+    }
+
+    /** role4/wait 作为可选施法前摇；是否启用只由 wait 节点是否存在决定。 */
+    private playCastPreparation(
+        waitNode: Node,
+        onRelease: () => void,
+        onComplete: () => void,
+    ): void {
+        const skeleton = waitNode.getComponent(sp.Skeleton)
+            || waitNode.getComponentInChildren(sp.Skeleton);
+        if (!skeleton) {
+            onRelease();
+            onComplete();
+            return;
+        }
+
+        this.preparationNode = waitNode;
+        waitNode.active = true;
+        let completed = false;
+        const finish = () => {
+            if (completed) return;
+            completed = true;
+            skeleton.setCompleteListener(() => {});
+            if (waitNode.isValid) waitNode.active = false;
+            if (this.preparationNode === waitNode) this.preparationNode = null;
+            onRelease();
+            onComplete();
+        };
+        skeleton.setCompleteListener(() => {});
+        skeleton.setAnimation(0, SkillSystemConfig.castPrepareAnimation, false);
+        this.host.scheduleOnce(finish, Math.max(0, SkillSystemConfig.castPrepareDuration));
     }
 
     /** 资源默认朝右（0°），按释放点到锁定目标的向量计算完整角度。 */
@@ -284,6 +384,14 @@ export class PlayerSkillController {
         this.player = null;
         this.currentSkill = null;
         this.casting = false;
+        this.preparingCast = false;
+        if (this.preparationNode?.isValid) {
+            const skeleton = this.preparationNode.getComponent(sp.Skeleton)
+                || this.preparationNode.getComponentInChildren(sp.Skeleton);
+            skeleton?.setCompleteListener(() => {});
+            this.preparationNode.active = false;
+        }
+        this.preparationNode = null;
         this.playbackTimeScale = 1;
         this.quantityBonuses.clear();
         this.pendingOrbitRebuild = false;
@@ -298,6 +406,7 @@ export class PlayerSkillController {
         onImpact: (damage?: number) => void,
         onComplete: () => void,
         isFinalBoss: boolean,
+        includeRoleAttack: boolean,
     ): boolean {
         const segmentCount = Math.max(1, Math.round(config.segmentCount || 1));
         const segmentInterval = Math.max(0, config.segmentInterval || 0);
@@ -314,7 +423,7 @@ export class PlayerSkillController {
         let impacted = false;
         this.casting = true;
         if (isFinalBoss) AudioManager.playHeHa();
-        AudioManager.playRoleSkill(config.id, !isFinalBoss);
+        AudioManager.playRoleSkill(config.id, includeRoleAttack && !isFinalBoss);
 
         const tryFinishCast = () => {
             if (castFinished) return;
@@ -371,6 +480,7 @@ export class PlayerSkillController {
         onImpact: (damage?: number) => void,
         onComplete: () => void,
         isFinalBoss: boolean,
+        includeRoleAttack: boolean,
     ): boolean {
         const count = this.getProjectileCount(config);
         const interval = Math.max(0, config.projectileInterval || 0);
@@ -382,7 +492,7 @@ export class PlayerSkillController {
         let completed = false;
         this.casting = true;
         if (isFinalBoss) AudioManager.playHeHa();
-        AudioManager.playRoleSkill(config.id, !isFinalBoss);
+        AudioManager.playRoleSkill(config.id, includeRoleAttack && !isFinalBoss);
 
         const finishOne = (instance: Node | null) => {
             if (instance) {
@@ -533,6 +643,12 @@ export class PlayerSkillController {
         }
     }
 
+    private canCastOrbitProjectile(config: SkillConfig): boolean {
+        if (this.orbitBlades.length === 0) this.startTemplateOrbit(config);
+        const blades = this.orbitBlades.filter(blade => blade.node.isValid && blade.node.active);
+        return blades.length > 0 && blades.every(blade => blade.state === 'orbiting');
+    }
+
     /** needle 一次把所有环绕飞剑同时发射，本轮总伤害在飞剑之间分摊。 */
     private castOrbitProjectile(
         player: Player,
@@ -541,6 +657,7 @@ export class PlayerSkillController {
         onImpact: (damage?: number) => void,
         onComplete: () => void,
         isFinalBoss: boolean,
+        includeRoleAttack: boolean,
     ): boolean {
         if (this.orbitBlades.length === 0) this.startTemplateOrbit(config);
         const blades = this.orbitBlades.filter(blade => blade.node.isValid && blade.node.active);
@@ -587,7 +704,7 @@ export class PlayerSkillController {
             );
         }
         if (isFinalBoss) AudioManager.playHeHa();
-        AudioManager.playRoleSkill(config.id, !isFinalBoss);
+        AudioManager.playRoleSkill(config.id, includeRoleAttack && !isFinalBoss);
         return true;
     }
 

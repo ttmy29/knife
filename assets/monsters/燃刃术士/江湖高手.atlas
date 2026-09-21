@@ -1,0 +1,76 @@
+
+江湖高手.png
+size: 422, 89
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+shadow
+  rotate: false
+  xy: 237, 42
+  size: 88, 45
+  orig: 91, 47
+  offset: 1, 1
+  index: -1
+江湖高手右手
+  rotate: false
+  xy: 289, 8
+  size: 41, 32
+  orig: 43, 34
+  offset: 0, 2
+  index: -1
+江湖高手右肩
+  rotate: false
+  xy: 327, 44
+  size: 63, 43
+  orig: 66, 44
+  offset: 0, 1
+  index: -1
+江湖高手右腿
+  rotate: false
+  xy: 237, 2
+  size: 50, 38
+  orig: 51, 38
+  offset: 1, 0
+  index: -1
+江湖高手头
+  rotate: false
+  xy: 171, 5
+  size: 64, 82
+  orig: 69, 83
+  offset: 0, 1
+  index: -1
+江湖高手左上臂
+  rotate: false
+  xy: 369, 2
+  size: 31, 40
+  orig: 32, 41
+  offset: 0, 1
+  index: -1
+江湖高手左手
+  rotate: true
+  xy: 2, 6
+  size: 81, 91
+  orig: 82, 92
+  offset: 0, 1
+  index: -1
+江湖高手左腿
+  rotate: true
+  xy: 332, 5
+  size: 37, 35
+  orig: 37, 35
+  offset: 0, 0
+  index: -1
+江湖高手腰带
+  rotate: false
+  xy: 392, 58
+  size: 28, 29
+  orig: 29, 30
+  offset: 0, 1
+  index: -1
+江湖高手身体
+  rotate: false
+  xy: 95, 9
+  size: 74, 78
+  orig: 75, 93
+  offset: 0, 15
+  index: -1

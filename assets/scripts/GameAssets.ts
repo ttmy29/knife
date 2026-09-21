@@ -8,7 +8,6 @@ export type GamePrefabKey =
     | 'role1'
     | 'role2'
     | 'role3'
-    | 'deadEffect'
     | 'boom'
     | 'boom2'
     | 'light'
@@ -65,7 +64,6 @@ export class GameAssets {
     @property(Prefab) role1: Prefab | null = null;
     @property(Prefab) role2: Prefab | null = null;
     @property(Prefab) role3: Prefab | null = null;
-    @property(Prefab) deadEffect: Prefab | null = null;
     @property(Prefab) boom: Prefab | null = null;
     @property(Prefab) boom2: Prefab | null = null;
     @property(Prefab) light: Prefab | null = null;

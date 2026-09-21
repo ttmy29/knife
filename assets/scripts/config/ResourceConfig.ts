@@ -40,7 +40,6 @@ export const ResourcePath = {
         Role1: 'roles/role/role1',
         Role2: 'roles/role/role2',
         Role3: 'roles/role/role3',
-        DeadEffect: 'roles/role/deadEffect',
         Boom: 'roles/role/boom',
         Boom2: 'roles/role/boom2',
         Light: 'roles/role/light',
