@@ -18,6 +18,14 @@ export interface MonsterPathHit {
     segmentIndex: number;
 }
 
+export interface SideApproachOptions {
+    preferredSide: number;
+    desiredAngle: number;
+    angleLimit: number;
+    movingMonster?: Monster | null;
+    targetMonster?: Monster | null;
+}
+
 /**
  * 格子地图：墙体占用表 + 怪物占用表 + A* 寻路。
  * 挂在 GameWorld 上（GameManager 会自动添加）。
@@ -505,6 +513,32 @@ export class Grid extends Component {
             ? Math.sign(entryDx)
             : (Math.abs(startWorld.x - center.x) > 0.5 ? Math.sign(startWorld.x - center.x) : -1);
         const desiredAngle = Math.max(-limit, Math.min(limit, entryAngle));
+        return this.buildSideApproachPath(startWorld, center, radius, {
+            preferredSide,
+            desiredAngle,
+            angleLimit: limit,
+            targetMonster: monster,
+        });
+    }
+
+    /**
+     * 通用左右侧接近路径：角色近战和怪物反击共用候选点、避障与寻路规则。
+     * movingMonster 会从怪物占格中忽略；targetMonster 的中心区域仍作为障碍。
+     */
+    buildSideApproachPath(
+        startWorld: Vec3,
+        center: Vec3,
+        radius: number,
+        options: SideApproachOptions,
+    ): Vec3[] | null {
+        const startCell = this.worldToGrid(startWorld);
+        if (!startCell) return null;
+        const safeRadius = Math.max(0, radius);
+        const limit = Math.max(0, Math.min(89, options.angleLimit));
+        const preferredSide = options.preferredSide >= 0 ? 1 : -1;
+        const desiredAngle = Math.max(-limit, Math.min(limit, options.desiredAngle));
+        const movingMonster = options.movingMonster || null;
+        const targetMonster = options.targetMonster || null;
         const angles: number[] = [];
         const addAngle = (angle: number): void => {
             const clamped = Math.max(-limit, Math.min(limit, angle));
@@ -524,27 +558,30 @@ export class Grid extends Component {
             for (const angle of angles) {
                 const rad = angle * Math.PI / 180;
                 const candidate = new Vec3(
-                    center.x + side * Math.cos(rad) * radius,
-                    center.y + Math.sin(rad) * radius,
+                    center.x + side * Math.cos(rad) * safeRadius,
+                    center.y + Math.sin(rad) * safeRadius,
                     startWorld.z,
                 );
                 const targetCell = this.worldToGrid(candidate);
                 if (!targetCell || this.isWall(targetCell.x, targetCell.y) || this.isStair(targetCell.x, targetCell.y)) continue;
                 if (this.isChestAt(targetCell.x, targetCell.y)) continue;
                 const targetOccupant = this.getMonsterAt(targetCell.x, targetCell.y);
-                if (targetOccupant && targetOccupant !== monster) continue;
+                if (targetOccupant
+                    && targetOccupant !== movingMonster
+                    && targetOccupant !== targetMonster) continue;
 
                 const isBlocked = (col: number, row: number): boolean => {
                     if (!this.inBounds(col, row) || this.isWall(col, row) || this.isChestAt(col, row)) return true;
                     if ((col === startCell.x && row === startCell.y)
                         || (col === targetCell.x && row === targetCell.y)) return false;
                     const occupant = this.getMonsterAt(col, row);
-                    if (occupant && occupant !== monster) return true;
-                    if (occupant === monster) {
+                    if (occupant === movingMonster) return false;
+                    if (occupant && occupant !== targetMonster) return true;
+                    if (occupant === targetMonster) {
                         const cellCenter = this.gridToWorld(col, row);
                         const dx = cellCenter.x - center.x;
                         const dy = cellCenter.y - center.y;
-                        const innerRadius = Math.max(this.tileSize, radius * 0.65);
+                        const innerRadius = Math.max(this.tileSize, safeRadius * 0.65);
                         return dx * dx + dy * dy < innerRadius * innerRadius;
                     }
                     return false;

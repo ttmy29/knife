@@ -55,6 +55,7 @@ export const ResourcePath = {
         Fail: 'result/fail',
         Victory: 'result/victory',
         SkillPanel: 'result/SkillPanel',
+        Confirm: 'result/confiem',
         Hp: 'result/Hp',
     },
 
@@ -214,6 +215,8 @@ export const ResourcePath = {
         smallAttack:'music/smallAttack',
         bigAttack:'music/bigAttack',
         RoleAttack:'music/roleAttack',
+        Dianji:'music/dianji',
+        Fire:'music/fire',
         Skill1:'music/skill1',
         Skill2:'music/skill2',
         Skill3:'music/skill3',

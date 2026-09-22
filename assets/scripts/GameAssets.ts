@@ -13,6 +13,7 @@ export type GamePrefabKey =
     | 'light'
     | 'fail'
     | 'victory'
+    | 'confirm'
     | 'hp'
     | 'box'
     | 'powerSuit'
@@ -50,6 +51,8 @@ export type GameAudioKey =
     | 'smallAttack'
     | 'bigAttack'
     | 'roleAttack'
+    | 'dianji'
+    | 'fire'
     | 'skill1'
     | 'skill2'
     | 'skill3';
@@ -87,6 +90,7 @@ export class GameAssets {
 
     @property(Prefab) fail: Prefab | null = null;
     @property(Prefab) victory: Prefab | null = null;
+    @property(Prefab) confirm: Prefab | null = null;
     @property(Prefab) hp: Prefab | null = null;
 
     @property(AudioClip) bgm: AudioClip | null = null;
@@ -111,6 +115,8 @@ export class GameAssets {
     @property(AudioClip) smallAttack: AudioClip | null = null;
     @property(AudioClip) bigAttack: AudioClip | null = null;
     @property(AudioClip) roleAttack: AudioClip | null = null;
+    @property(AudioClip) dianji: AudioClip | null = null;
+    @property(AudioClip) fire: AudioClip | null = null;
     @property(AudioClip) skill1: AudioClip | null = null;
     @property(AudioClip) skill2: AudioClip | null = null;
     @property(AudioClip) skill3: AudioClip | null = null;

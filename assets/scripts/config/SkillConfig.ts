@@ -82,6 +82,11 @@ export const SkillSystemConfig = {
     /** 角色真正释放技能前播放的准备 Spine。 */
     castPrepareNodeName: 'wait',
     castPrepareAnimation: 'animation',
+    /** 不同技能使用的 role4/wait Spine；未配置的技能沿用预制体默认资源。 */
+    castPrepareSkeletonPaths: {
+        fireDao: 'roles/Effects/simayi_skill1',
+        needle: 'roles/1/simayi_skill1',
+    } as Partial<Record<SkillName, string>>,
     /** wait 播放时长；到时隐藏并真正释放技能。 */
     castPrepareDuration: 0.5,
 };
@@ -121,9 +126,9 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         projectileAngleOffset: 0,
         monsterImpactEffect: 'boom',
         monsterImpactEffectAnimation: 'molotovAttackhits',
-        projectileSpeed: 400,
+        projectileSpeed: 600,
         projectileCount: 1,//数量
-        projectileInterval: 0.2,
+        projectileInterval: 0.1,
         hitRadius: 40,
         maxTravelTime: 3,
         forceHideTimeout: 3,
@@ -149,8 +154,8 @@ export const SkillConfigs: Record<SkillName, SkillConfig> = {
         orbitReturnSpeed: 520,
         orbitRejoinRadius: 24,
         orbitReturnTimeout: 3,
-        monsterImpactEffect: 'boom',
-        monsterImpactEffectAnimation: 'molotovAttackhits',
+        monsterImpactEffect: 'boom2',
+        monsterImpactEffectAnimation: 'boom',//animation
         projectileSpeed: 1000,
         hitRadius: 40,
         maxTravelTime: 3,

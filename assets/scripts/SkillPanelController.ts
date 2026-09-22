@@ -1,5 +1,6 @@
 import { Button, director, Director, Node, RichText, tween, Tween, UIOpacity, Vec3 } from 'cc';
 import { SkillName } from './config/SkillConfig';
+import { AudioManager } from './core/AudioManager';
 import { PrefabManager } from './core/PrefabManager';
 
 /** 加载并复用 result/SkillPanel，统一处理首次解锁和后续升级选择。 */
@@ -138,7 +139,20 @@ export class SkillPanelController {
             this.hide(() => this.onUpgrade(skill, powerGain));
             return;
         }
-        this.hide(() => this.onSelect(skill));
+        AudioManager.playSkillSelect();
+        this.hideImmediately(() => this.onSelect(skill));
+    }
+
+    /** 首次技能选择直接隐藏，不播放 opacity 淡出。 */
+    private hideImmediately(onHidden?: () => void): void {
+        this.selecting = false;
+        this.opacityTween?.stop();
+        this.opacityTween = null;
+        const panel = this.panelNode;
+        if (panel?.isValid) panel.active = false;
+        this.onVisibilityChanged(false, this.pauseGameplayWhileVisible);
+        this.pauseGameplayWhileVisible = false;
+        onHidden?.();
     }
 
     private applyPanelText(): void {

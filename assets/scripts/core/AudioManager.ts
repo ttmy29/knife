@@ -27,6 +27,8 @@ const AUDIO_PATHS: Record<GameAudioKey, string> = {
     smallAttack: ResourcePath.Audio.smallAttack,
     bigAttack: ResourcePath.Audio.bigAttack,
     roleAttack: ResourcePath.Audio.RoleAttack,
+    dianji: ResourcePath.Audio.Dianji,
+    fire: ResourcePath.Audio.Fire,
     skill1: ResourcePath.Audio.Skill1,
     skill2: ResourcePath.Audio.Skill2,
     skill3: ResourcePath.Audio.Skill3,
@@ -36,10 +38,11 @@ export class AudioManager {
     private static source: AudioSource | null = null;
     private static assets: GameAssets | null = null;
     private static bgmClip: AudioClip | null = null;
-    private static readonly bgmVolume = 0.8;
+    private static readonly bgmVolume = 1;
     private static readonly sfxVolume = 2;
     private static readonly levelUpVolume = 4;
     private static readonly roleSkillVolume = 4;
+    private static readonly skillSelectVolume = 4;
 
     static init(owner: Node, assets: GameAssets): void {
         this.source = owner.getComponent(AudioSource) || owner.addComponent(AudioSource);
@@ -75,7 +78,7 @@ export class AudioManager {
     static playRoleSkill(skill: SkillName, includeRoleAttack = true): void {
         const skillAudio: Record<SkillName, GameAudioKey> = {
             trop: 'skill1',
-            fireDao: 'skill2',
+            fireDao: 'fire',
             wheel: 'skill3',
             needle: 'skill2',
         };
@@ -84,6 +87,10 @@ export class AudioManager {
 
     static playRoleAttack(): void {
         void this.playSfxByKey('roleAttack', this.roleSkillVolume);
+    }
+
+    static playSkillSelect(): void {
+        void this.playSfxByKey('dianji', this.skillSelectVolume);
     }
 
     static async preload(keys: readonly GameAudioKey[]): Promise<void> {

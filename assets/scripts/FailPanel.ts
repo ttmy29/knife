@@ -1,11 +1,12 @@
-import { _decorator, Button, Component, director, Node, tween, Vec3 } from 'cc';
+import { _decorator, Button, Component, director, Label, Node, tween, Vec3 } from 'cc';
 
 const { ccclass } = _decorator;
 
 @ccclass('FailPanel')
 export class FailPanel extends Component {
-    play(cameraNode: Node | null): void {
+    play(cameraNode: Node | null, defeatedMonsterCount: number): void {
         this.positionAtCamera(cameraNode);
+        this.updateProgress(defeatedMonsterCount);
         this.playFailureTweens();
 
         const retryButton = this.node.getChildByName('Button');
@@ -13,6 +14,15 @@ export class FailPanel extends Component {
         if (button) {
             button.node.on(Button.EventType.CLICK, () => director.loadScene('game'));
         }
+    }
+
+    private updateProgress(defeatedMonsterCount: number): void {
+        const allNode = this.node.children.find(child =>
+            child.name === 'all' && !!child.getChildByName('icon'));
+        const label = allNode?.getChildByName('icon')?.getChildByName('Label')?.getComponent(Label);
+        if (!label) return;
+        const count = Math.max(0, Math.floor(defeatedMonsterCount));
+        label.string = `当前进度：${count}/11`;
     }
 
     private positionAtCamera(cameraNode: Node | null): void {

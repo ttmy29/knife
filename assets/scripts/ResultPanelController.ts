@@ -13,7 +13,7 @@ export class ResultPanelController {
         private readonly camera: Camera | null,
     ) {}
 
-    showFail(): void {
+    showFail(defeatedMonsterCount: number): void {
         if (!this.uiLayer || this.failPanel) return;
         AudioManager.stopBgm();
         AudioManager.playFail();
@@ -28,7 +28,7 @@ export class ResultPanelController {
         panel.name = 'FailPanel';
         this.uiLayer.addChild(panel);
         const failPanel = panel.addComponent(FailPanel);
-        failPanel.play(this.camera ? this.camera.node : null);
+        failPanel.play(this.camera ? this.camera.node : null, defeatedMonsterCount);
         this.failPanel = panel;
     }
 

@@ -22,6 +22,7 @@ import { PlayerInputController } from './PlayerInputController';
 import { PlayerRoleController } from './PlayerRoleController';
 import { PlayerSkillController } from './PlayerSkillController';
 import { SkillPanelController } from './SkillPanelController';
+import { SkillConfirmEffectController } from './SkillConfirmEffectController';
 import { RewardController } from './RewardController';
 import { ResultPanelController } from './ResultPanelController';
 import { Level1 } from './GameConfig';
@@ -65,6 +66,7 @@ export class GameManager extends Component {
     private playerRoles: PlayerRoleController | null = null;
     private playerSkills: PlayerSkillController | null = null;
     private skillPanel: SkillPanelController | null = null;
+    private skillConfirmEffect: SkillConfirmEffectController | null = null;
     private damageNumbers: DamageNumberController | null = null;
     private autoSkills: AutoSkillController | null = null;
     private playerInput: PlayerInputController | null = null;
@@ -249,6 +251,7 @@ export class GameManager extends Component {
             () => this.openingSequence?.active || false,
             () => (this.battle?.isBattling() || false)
                 || (this.skillPanel?.isVisible() || false)
+                || (this.skillConfirmEffect?.isPlaying() || false)
                 || (this.playerSkills?.isPreparingCast() || false)
                 || (this.monsterCombat?.isInputLocked() || false),
             this.monsterGlow,
@@ -289,6 +292,7 @@ export class GameManager extends Component {
         this.autoSkills?.destroy();
         this.playerSkills?.destroy();
         this.skillPanel?.destroy();
+        this.skillConfirmEffect?.destroy();
         this.damageNumbers?.destroy();
     }
 
@@ -354,7 +358,7 @@ export class GameManager extends Component {
         const audioKeys = [
             'attack1', 'attack2', 'attack3',
             'smallAttack', 'bigAttack',
-            'roleAttack', 'skill1', 'skill2', 'skill3',
+            'roleAttack', 'dianji', 'fire', 'skill1', 'skill2', 'skill3',
             'monsterDie', 'roleDie', 'expCollect', 'levelUp', 'cheer',
             'shout', 'heHa', 'bossAttack', 'bossDie', 'fail', 'victory',
         ] as const;
@@ -367,7 +371,9 @@ export class GameManager extends Component {
             PrefabManager.loadBoom(),
             PrefabManager.loadBoom2(),
             PrefabManager.loadLight(),
+            PrefabManager.loadConfirm(),
             PrefabManager.loadHp(),
+            this.playerSkills?.preloadCastPreparationAssets() || Promise.resolve(),
         ];
 
         await Promise.all(tasks.map(async task => {
@@ -500,12 +506,24 @@ export class GameManager extends Component {
         if (!this.uiLayer) return;
         this.monsterGuide?.init(this.uiLayer);
         this.resultPanels = new ResultPanelController(this.uiLayer, this.camera);
+        this.skillConfirmEffect = new SkillConfirmEffectController(
+            this.uiLayer,
+            () => this.player?.node?.worldPosition || null,
+        );
         this.skillPanel = new SkillPanelController(
             this.uiLayer,
             () => this.player?.node?.worldPosition || null,
             (skill) => {
-                this.playerSkills?.unlock(skill);
-                this.tryShowKillUpgrade();
+                this.pathLine?.clear();
+                this.player?.cancelMovement();
+                this.autoSkills?.clearSelectedTarget();
+                this.monsterCombat?.disengage();
+                const unlock = () => {
+                    this.playerSkills?.unlock(skill);
+                    this.tryShowKillUpgrade();
+                };
+                if (this.skillConfirmEffect) this.skillConfirmEffect.play(skill, unlock);
+                else unlock();
             },
             (_skill, powerGain) => this.applyKillUpgrade(powerGain),
             (visible, pauseGameplay) => {
@@ -620,7 +638,7 @@ export class GameManager extends Component {
     /** 角色死亡：显示失败面板。 */
     private showDeathUI(): void {
         this.lockResultState();
-        this.resultPanels?.showFail();
+        this.resultPanels?.showFail(this.defeatedMonsterCount);
     }
 
     /** 打败最终怪物：显示胜利面板。 */

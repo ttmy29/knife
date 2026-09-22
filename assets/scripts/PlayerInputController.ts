@@ -139,7 +139,12 @@ export class PlayerInputController {
                 monsterHit.monster.battleRadius,
             );
             if (battlePath) {
-                const displayPath = selectedMonster === monsterHit.monster ? battlePath : movePath;
+                // 明确点击某只怪物，但途中先碰到另一只怪物时，只让沿途怪物
+                // 拦停角色：清除原点击目标，走到沿途怪物范围后等待玩家再次点击。
+                if (selectedMonster && selectedMonster !== monsterHit.monster) {
+                    this.selectAttackTarget(null);
+                }
+                const displayPath = selectedMonster ? battlePath : movePath;
                 this.getPathLine()?.drawPath(displayPath, displayPath[displayPath.length - 1]);
                 player.moveTo(battlePath, monsterHit.monster);
                 return;

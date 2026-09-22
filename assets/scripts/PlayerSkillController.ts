@@ -3,6 +3,8 @@ import { Monster } from './Monster';
 import { Player } from './Player';
 import { SkillConfig, SkillConfigs, SkillName, SkillSystemConfig } from './config/SkillConfig';
 import { AudioManager } from './core/AudioManager';
+import { BundleManager } from './core/BundleManager';
+import { ResourcePath } from './config/ResourceConfig';
 
 interface ActiveProjectile {
     node: Node;
@@ -50,6 +52,8 @@ export class PlayerSkillController {
     private readonly orbitBlades: OrbitBlade[] = [];
     private readonly quantityBonuses = new Map<SkillName, number>();
     private pendingOrbitRebuild = false;
+    private readonly castPreparationSkeletons = new Map<SkillName, sp.SkeletonData>();
+    private defaultCastPreparationSkeleton: sp.SkeletonData | null = null;
 
     constructor(
         private readonly host: Component,
@@ -60,6 +64,11 @@ export class PlayerSkillController {
     bindPlayer(player: Player): void {
         this.clearOrbitBlades();
         this.player = player;
+        const waitNode = player.node.getChildByName(SkillSystemConfig.castPrepareNodeName);
+        const waitSkeleton = waitNode?.getComponent(sp.Skeleton)
+            || waitNode?.getComponentInChildren(sp.Skeleton)
+            || null;
+        this.defaultCastPreparationSkeleton = waitSkeleton?.skeletonData || null;
         const effects = player.node.getChildByName('Effects');
         if (!effects) {
             console.warn('[PlayerSkillController] role4/Effects is missing');
@@ -72,6 +81,20 @@ export class PlayerSkillController {
             if (template) template.active = false;
             else console.warn(`[PlayerSkillController] Effects/${name} is missing`);
         }
+    }
+
+    async preloadCastPreparationAssets(): Promise<void> {
+        const skills = Object.keys(SkillSystemConfig.castPrepareSkeletonPaths) as SkillName[];
+        await Promise.all(skills.map(async (skill) => {
+            const path = SkillSystemConfig.castPrepareSkeletonPaths[skill];
+            if (!path) return;
+            const data = await BundleManager.loadAsset(
+                ResourcePath.Bundle.Roles,
+                path,
+                sp.SkeletonData,
+            );
+            this.castPreparationSkeletons.set(skill, data);
+        }));
     }
 
     unlock(name: SkillName): void {
@@ -183,6 +206,7 @@ export class PlayerSkillController {
         if (!isFinalBoss) AudioManager.playRoleAttack();
         this.playCastPreparation(
             waitNode,
+            config.id,
             () => { releaseSkill(); },
             () => { this.preparingCast = false; },
         );
@@ -282,6 +306,7 @@ export class PlayerSkillController {
     /** role4/wait 作为可选施法前摇；是否启用只由 wait 节点是否存在决定。 */
     private playCastPreparation(
         waitNode: Node,
+        skill: SkillName,
         onRelease: () => void,
         onComplete: () => void,
     ): void {
@@ -291,6 +316,12 @@ export class PlayerSkillController {
             onRelease();
             onComplete();
             return;
+        }
+
+        const skeletonData = this.castPreparationSkeletons.get(skill)
+            || this.defaultCastPreparationSkeleton;
+        if (skeletonData && skeleton.skeletonData !== skeletonData) {
+            skeleton.skeletonData = skeletonData;
         }
 
         this.preparationNode = waitNode;

@@ -64,12 +64,12 @@ export const Level1: LevelData = {
         { name: 'monster4', prefab: 'monster4', x: -365, y: -40, power: 184, damage: 25, scaleX: -0.5 },//-107
         { name: 'monster2', prefab: 'monster2', x: 200, y: -180, power: 664, damage: 60, scaleX: -0.5 },//400
         { name: 'monster3', prefab: 'monster4', x: -560, y: -170, power: 310, damage: 35, scaleX: 0.5 },//-60 -20
-        { name: 'monster5', prefab: 'monster2', x: -100, y: 90, power: 512, damage: 50, scaleX: -0.5 },
+        { name: 'monster11', prefab: 'monster2', x: -60, y: 100, power: 512, damage: 50, scaleX: -0.5 },
         { name: 'monster6', prefab: 'monster4', x: 560, y: -320, power: 850, damage: 75, scaleX: -0.5 },
         { name: 'monster7', prefab: 'monster3', x: -280, y: -180, power: 50, damage: 10, scaleX: 0.5 },
-        { name: 'monster8', prefab: 'monster2', x: -220, y: -300, power: 25, damage: 5, scaleX: -0.5 },
+        { name: 'monster8', prefab: 'monster2', x: -200, y: -280, power: 25, damage: 5, scaleX: -0.5 },
         { name: 'monster9', prefab: 'monster3', x: 740, y: 20, power: 1809, damage: 120, scaleX: 0.5 },
         { name: 'monster10', prefab: 'monster4', x: 30, y: -170, power: 360, damage: 40, scaleX: -0.5 },
-       { name: 'monster11', prefab: 'monster3', x: -120, y: -20, power: 1182, damage: 90, scaleX: -0.5 },
+       { name: 'monster5', prefab: 'monster3', x: -120, y: -30, power: 1182, damage: 90, scaleX: -0.5 },
     ],
 };

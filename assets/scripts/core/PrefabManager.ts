@@ -15,6 +15,7 @@ type PrefabKey =
     | 'fail'
     | 'victory'
     | 'skillPanel'
+    | 'confirm'
     | 'hp'
     | 'box'
     | 'powerSuit'
@@ -42,6 +43,7 @@ const PREFAB_LOAD_CONFIG: Record<PrefabKey, { bundle: string; path: string }> = 
     fail: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Fail },
     victory: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Victory },
     skillPanel: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.SkillPanel },
+    confirm: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Confirm },
     hp: { bundle: ResourcePath.Bundle.Result, path: ResourcePath.Prefab.Hp },
     box: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.Box },
     powerSuit: { bundle: ResourcePath.Bundle.Baoxiang, path: ResourcePath.Prefab.PowerSuit },
@@ -107,6 +109,10 @@ export class PrefabManager {
 
     static loadSkillPanel(): Promise<Prefab> {
         return this.loadPrefab('skillPanel');
+    }
+
+    static loadConfirm(): Promise<Prefab> {
+        return this.loadPrefab('confirm');
     }
 
     static loadHp(): Promise<Prefab> {
@@ -177,6 +183,10 @@ export class PrefabManager {
 
     static async createSkillPanel(): Promise<Node> {
         return instantiate(await this.loadSkillPanel());
+    }
+
+    static createConfirm(): Node {
+        return this.createLoadedPrefab('confirm');
     }
 
     static createHp(): Node {
